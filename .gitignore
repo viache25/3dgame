@@ -1,0 +1,9 @@
+node_modules/
+scene3d/out/
+scene3d/final/
+sfx/out/
+sfx/wav/
+sfx/mp3/
+storyboard/index.html
+*.log
+.DS_Store

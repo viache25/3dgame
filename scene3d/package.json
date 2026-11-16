@@ -1,0 +1,15 @@
+{
+  "name": "cyberking-3d-scene",
+  "private": true,
+  "description": "Hoplite vs Luna: a 15-second fight scene in three.js, made entirely in code",
+  "scripts": {
+    "build": "node build.cjs --site",
+    "test": "node build.cjs && node playtest.cjs"
+  },
+  "dependencies": {
+    "three": "0.147.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.0"
+  }
+}
