@@ -2,7 +2,8 @@
 // cut a pillar, take a blow. Fails on any page error. Writes pictures of each moment to out/.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), assert = require('assert');
-const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+// DIST=1 plays the site in dist/ instead, with the CDN cut off, to prove it needs nothing from outside
+const DIST = !!process.env.DIST, html = fs.readFileSync(path.join(__dirname, DIST ? '../dist/index.html' : '../index.html'), 'utf8');
 const out = (n) => path.join(__dirname, '../out', n);
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -12,7 +13,8 @@ const out = (n) => path.join(__dirname, '../out', n);
   const errors = [];
   p.on('pageerror', (e) => errors.push(String(e)));
   p.on('console', (m) => { if (m.type() === 'error' && !/favicon|ERR_FAILED|net::/.test(m.text())) errors.push(m.text()); });
-  await p.route('https://cdn.jsdelivr.net/npm/three@0.147.0/**', (r) => r.fulfill({ body: fs.readFileSync(path.join(__dirname, '../node_modules/three', r.request().url().split('three@0.147.0/')[1])), contentType: 'application/javascript' }));
+  if (DIST) { await p.route('https://cdn.jsdelivr.net/**', (r) => r.abort()); await p.route('http://local.test/*.js', (r) => r.fulfill({ body: fs.readFileSync(path.join(__dirname, '../dist', new URL(r.request().url()).pathname)), contentType: 'application/javascript' })); }
+  else await p.route('https://cdn.jsdelivr.net/npm/three@0.147.0/**', (r) => r.fulfill({ body: fs.readFileSync(path.join(__dirname, '../node_modules/three', r.request().url().split('three@0.147.0/')[1])), contentType: 'application/javascript' }));
   await p.route('https://fonts.googleapis.com/**', (r) => r.fulfill({ body: '', contentType: 'text/css' }));
   await p.route('http://local.test/', (r) => r.fulfill({ body: html, contentType: 'text/html' }));
   await p.goto('http://local.test/');

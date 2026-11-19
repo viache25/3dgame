@@ -1,0 +1,6 @@
+// Cloudflare: serves the built game in slasher/dist as a static site. Nothing is built on Cloudflare's side; the folder is committed.
+{
+  "name": "blade-and-clay",
+  "compatibility_date": "2025-06-01",
+  "assets": { "directory": "./slasher/dist" }
+}
