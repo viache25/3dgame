@@ -27,10 +27,12 @@ const MODELS = (function () {
   function dispose(rig) { for (const b of rig.list) if (b.mesh) { b.mesh.geometry.dispose(); b.mesh = null; } }
 
   // A clay idol woken by the fire inside it. core pieces are the ones it cannot live without.
-  function idol(brute) {
-    const skin = brute ? 17 : 0, band = brute ? 18 : 1, inner = brute ? 20 : 2;
+  // kind: grunt, imp (small, big-headed), thrower (blue bands, no maul), brute (basalt, two mauls), colossus (its legs are not vital: it can be felled)
+  function idol(kind) {
+    const brute = kind === 'brute', giant = kind === 'colossus', imp = kind === 'imp', thrower = kind === 'thrower';
+    const skin = brute ? 17 : giant ? 22 : imp ? 21 : 0, band = brute || giant ? 18 : thrower ? 9 : 1, inner = brute || giant ? 20 : 2;
     const o = (col, extra) => Object.assign({ col, inner, glow: 1 }, extra || {});
-    const core = { core: true }, chest = { core: true, chest: true };
+    const core = { core: true }, chest = { core: true, chest: true }, legs = giant ? null : core;
     const arm = (s, heavy) => [
       { name: 'arm' + s, parent: 'chest', at: [(s === 'L' ? 1 : -1) * 0.31, 0.44, 0], pieces: [
         L([[0.07, -0.09], [0.12, -0.03], [0.12, 0.04], [0.075, 0.1]], o(band, { sides: 6 })),
@@ -43,9 +45,9 @@ const MODELS = (function () {
       ] },
     ];
     const leg = (s) => [
-      { name: 'thigh' + s, parent: 'hips', at: [(s === 'L' ? 1 : -1) * 0.11, -0.08, 0], pieces: [limb(0.4, 0.105, 0.085, o(skin, { sides: 6, tag: core }))] },
+      { name: 'thigh' + s, parent: 'hips', at: [(s === 'L' ? 1 : -1) * 0.11, -0.08, 0], pieces: [limb(0.4, 0.105, 0.085, o(skin, { sides: 6, tag: legs }))] },
       { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.4, 0], pieces: [
-        limb(0.31, 0.078, 0.092, o(skin, { sides: 6, tag: core })),
+        limb(0.31, 0.078, 0.092, o(skin, { sides: 6, tag: legs })),
         P(B(0.16, 0.08, 0.28, o(band)), 0, -0.38, 0.05),
       ] },
     ];
@@ -57,18 +59,21 @@ const MODELS = (function () {
       glowing(P(B(0.07, 0.036, 0.05, o(3)), -0.078, 0.225, 0.146), 1.5),
       P(B(0.1, 0.022, 0.04, o(band)), 0, 0.12, 0.135),
     ];
-    if (brute) head.push(P(L([[0.05, 0], [0, 0.26]], o(19, { sides: 5 })), 0.17, 0.44, 0, 0, 0, -0.5), P(L([[0.05, 0], [0, 0.26]], o(19, { sides: 5 })), -0.17, 0.44, 0, 0, 0, 0.5));
+    if (brute || giant) head.push(P(L([[0.05, 0], [0, 0.26]], o(19, { sides: 5 })), 0.17, 0.44, 0, 0, 0, -0.5), P(L([[0.05, 0], [0, 0.26]], o(19, { sides: 5 })), -0.17, 0.44, 0, 0, 0, 0.5));
+    if (imp) for (let i = 0; i < head.length; i++) head[i] = P(head[i], 0, 0, 0, 0, 0, 0, 1.4);
     return [
-      { name: 'hips', parent: null, at: [0, 0.86, 0], pieces: [P(B(0.37, 0.21, 0.25, o(band, { taper: 1.08, tag: core })), 0, -0.11, 0)] },
+      { name: 'hips', parent: null, at: [0, 0.86, 0], pieces: [P(B(0.37, 0.21, 0.25, o(band, { taper: 1.08, tag: legs })), 0, -0.11, 0)] },
       { name: 'chest', parent: 'hips', at: [0, 0.09, 0], pieces: [
         L([[0.17, 0], [0.195, 0.19]], o(skin, { sides: 6, sz: 0.76, tag: core })),
         P(L([[0.19, 0], [0.275, 0.2], [0.25, 0.35]], o(skin, { sides: 6, sz: 0.72, tag: chest })), 0, 0.17, 0),
         P(B(0.2, 0.2, 0.05, o(19, { taper: 0.6 })), 0, 0.23, 0.145),
       ] },
       { name: 'head', parent: 'chest', at: [0, 0.52, 0], pieces: head },
-      ...arm('L', brute), ...arm('R', true), ...leg('L'), ...leg('R'),
+      ...arm('L', brute || giant), ...arm('R', !(imp || thrower)), ...leg('L'), ...leg('R'),
     ];
   }
+  // What a thrower lobs: a lump of clay with the fire still in it.
+  function shot() { return glowing(L([[0.09, -0.16], [0.17, -0.07], [0.17, 0.07], [0.09, 0.16]], { sides: 7, col: 3, inner: 2, glow: 1 }), 0.75); }
 
   // The wanderer. Not meant to be cut, but built the same way so that a lost fight leaves a heap.
   function hero() {
@@ -129,5 +134,5 @@ const MODELS = (function () {
     },
   };
 
-  return { makeRig, rebuild, dispose, idol, hero, katana, props };
+  return { makeRig, rebuild, dispose, idol, shot, hero, katana, props };
 })();

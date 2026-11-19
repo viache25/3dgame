@@ -5,7 +5,7 @@
 /* layout: the picture fills the screen; the HUD sits in its corners, and the start, pause and end sheets lie along the left edge so the scene stays in view */
 :root {
   --night: #170f20; --plate: rgba(23, 15, 32, 0.78); --line: rgba(255, 196, 140, 0.28);
-  --ink: #fff2e0; --dim: #dcbfa4; --ember: #ff8a3c; --blade: #ffe1b0; --blood: #e2473d; --cool: #9fc4ff;
+  --ink: #fff2e0; --dim: #dcbfa4; --ember: #ff8a3c; --blade: #ffe1b0; --blood: #e2473d; --cool: #9fc4ff; --gold: #f2c14e;
   --display: "Dela Gothic One", "Arial Black", Impact, "Segoe UI", sans-serif;
   --ui: "Golos Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color-scheme: dark;
@@ -24,6 +24,8 @@ body { background: var(--night); color: var(--ink); font-family: var(--ui); over
 .fill { height: 100%; transform-origin: 0 50%; transition: transform 0.18s ease-out; }
 #hp { background: linear-gradient(90deg, var(--blood), var(--ember)); }
 #focus { background: linear-gradient(90deg, var(--blade), var(--cool)); }
+#xp { background: var(--gold); }
+.bar b { color: var(--ink); }
 .track.thin { height: 6px; }
 .stats { display: flex; align-items: flex-start; gap: 18px; text-align: right; }
 .stat { display: grid; gap: 1px; }
@@ -32,7 +34,7 @@ body { background: var(--night); color: var(--ink); font-family: var(--ui); over
 #sound { pointer-events: auto; font: 600 11px var(--ui); letter-spacing: 0.06em; color: var(--dim); background: var(--plate); border: 1px solid var(--line); padding: 7px 10px; cursor: pointer; }
 #sound:hover { color: var(--ink); }
 
-#banner { position: absolute; left: 0; right: 0; top: 21%; text-align: center; font-family: var(--display); font-size: clamp(30px, 6vw, 64px); line-height: 1.05; color: var(--ink); text-shadow: 0 0 28px rgba(255, 138, 60, 0.75), 0 3px 0 var(--night); opacity: 0; transform: scale(1.12); transition: opacity 0.45s, transform 0.45s; pointer-events: none; }
+#banner { position: absolute; left: 0; right: 0; top: 21%; text-align: center; font-family: var(--display); font-size: clamp(26px, 6vw, 64px); line-height: 1.05; text-wrap: balance; color: var(--ink); text-shadow: 0 0 28px rgba(255, 138, 60, 0.75), 0 3px 0 var(--night); opacity: 0; transform: scale(1.12); transition: opacity 0.45s, transform 0.45s; pointer-events: none; }
 #banner.on { opacity: 1; transform: none; }
 #hint { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding-block: 26px 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink); text-wrap: balance; background: linear-gradient(transparent, rgba(23, 15, 32, 0.8)); pointer-events: none; transition: opacity 0.8s; }
 #hint.gone { opacity: 0; }
@@ -56,12 +58,21 @@ body.touch .pads { display: flex; }
 .go { font-family: var(--display); font-size: 20px; line-height: 1; color: var(--night); background: var(--ember); border: 0; padding: 16px 30px 15px; cursor: pointer; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); transition: background 0.15s, transform 0.15s; }
 .go:hover { background: var(--blade); transform: translateX(3px); }
 button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
+#levelup { align-items: center; text-align: center; gap: 14px; background: rgba(23, 15, 32, 0.8); }
+#levelup h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(30px, 5.4vw, 56px); line-height: 1; color: var(--gold); text-shadow: 0 0 30px rgba(242, 193, 78, 0.5); }
+#levelup > #cards { width: 100%; max-width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.card { position: relative; display: grid; align-content: start; gap: 8px; min-width: 0; text-align: left; padding: 18px 16px 16px; font: 14px/1.4 var(--ui); color: var(--dim); background: var(--plate); border: 1px solid var(--line); cursor: pointer; transition: border-color 0.15s, transform 0.15s, background 0.15s; }
+.card:hover { border-color: var(--gold); background: rgba(52, 33, 58, 0.9); transform: translateY(-3px); }
+.card b { font-family: var(--display); font-weight: 400; font-size: 18px; line-height: 1.15; color: var(--ink); text-wrap: balance; }
+.card i { font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
+.card .num { position: absolute; right: 10px; top: 8px; font: 800 12px var(--ui); color: var(--dim); border: 1px solid var(--line); padding: 1px 6px; }
 #fail { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-size: 16px; color: var(--ink); background: var(--night); }
 @media (max-width: 560px) {
   .sheet { background: linear-gradient(180deg, rgba(23, 15, 32, 0.9), rgba(23, 15, 32, 0.72)); }
+  #levelup > #cards { grid-template-columns: 1fr; } .card { padding: 13px 14px; gap: 4px; }
   .stats { gap: 12px; } .stat b { font-size: 18px; } #sound { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint, .card { transition: none; } }
 </style>
 <div id="stage">
   <canvas id="gl"></canvas>
@@ -70,6 +81,7 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <div class="bars">
       <div class="bar"><span>Жизнь</span><div class="track"><div class="fill" id="hp"></div></div></div>
       <div class="bar"><span>Фокус</span><div class="track thin"><div class="fill" id="focus"></div></div></div>
+      <div class="bar"><span>Ур. <b id="level">1</b></span><div class="track thin"><div class="fill" id="xp"></div></div></div>
     </div>
     <div class="stats">
       <div class="stat"><b id="wave">1</b><span>Волна</span></div>
@@ -78,7 +90,7 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
       <button id="sound" type="button" aria-pressed="false">Звук вкл</button>
     </div>
   </div>
-  <div id="banner"></div>
+  <div id="banner" class="gutter"></div>
   <p id="hint" class="gutter gone"><span class="for-keys">Проведи мышью по врагу: разрез пройдёт по этой линии. WASD — бег, пробел — рывок, Shift — замедлить время.</span><span class="for-touch">Проведи пальцем по врагу: разрез пройдёт по этой линии. Левый палец ведёт героя.</span></p>
   <div id="stick" hidden><div id="knob"></div></div>
   <div class="pads gutter">
@@ -106,6 +118,11 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <h1>Клинок <em>остыл</em></h1>
     <p id="deadStats"></p>
     <button class="go" id="again" type="button">Ещё раз</button>
+  </div>
+  <div id="levelup" class="sheet gutter" hidden>
+    <h2>Уровень <span id="levelNum">2</span></h2>
+    <p>Клинок чему-то научился. Выбери одно.</p>
+    <div id="cards"></div>
   </div>
   <div id="pause" class="sheet gutter" hidden>
     <h1>Пауза</h1>

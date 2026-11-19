@@ -7,7 +7,7 @@ const PAL = [
   0xc48a56, 0x2f5a78, 0x3a1d14, 0x1c2350, // 8 jar, 9 jar glaze, 10 jar inside, 11 indigo cloth
   0xc22f3a, 0xdcc47c, 0xd7a988, 0xe4edf7, // 12 red sash, 13 straw, 14 skin, 15 steel
   0x12142a, 0x4b4458, 0xc9a044, 0xe8dcc0, // 16 dark wraps, 17 basalt, 18 gold, 19 bone paint
-  0x2a2233,                               // 20 basalt inside
+  0x2a2233, 0xd9935a, 0x8a4a34,           // 20 basalt inside, 21 pale clay (imps), 22 old clay (the colossus)
 ].map(lin);
 const SHARED = { uTime: { value: 0 } };
 

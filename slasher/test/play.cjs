@@ -23,7 +23,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   const shot = async (name) => { await p.evaluate(() => __game.frame()); await p.screenshot({ path: out(tag + name + '.png') }); };
   const run = (sec) => p.evaluate((s) => { for (let i = 0; i < Math.round(s * 60); i++) __game.step(1 / 60); }, sec);
   await shot('1-title');
-  await p.evaluate(() => { __game.begin(4242); window.risen = () => { const g = __game; for (let k = 0; k < 600; k++) { const e = g.enemies.find((x) => !x.dead && x.state !== 'rise'); if (e) return e; g.P.invul = 1; g.step(1 / 60); } throw new Error('no idol to cut'); }; });
+  await p.evaluate(() => { __game.begin(4242); __game.S.autoPick = true; window.clearIdols = () => { const g = __game; for (const e of g.enemies) if (!e.dead) { e.dead = true; if (e.rig.root.parent) e.rig.root.parent.remove(e.rig.root); } g.S.queue.length = 0; g.S.next = 1e9; }; window.risen = () => { const g = __game; for (let k = 0; k < 600; k++) { const e = g.enemies.find((x) => !x.dead && x.state !== 'rise'); if (e) return e; g.P.invul = 1; g.step(1 / 60); } throw new Error('no idol to cut'); }; });
   await run(2.6);
   let st = await p.evaluate(() => ({ mode: __game.S.mode, idols: __game.enemies.length, bodies: __game.bodies.length }));
   assert.strictEqual(st.mode, 'play'); assert(st.idols >= 2, 'idols have risen: ' + st.idols);
@@ -73,8 +73,8 @@ const out = (n) => path.join(__dirname, '../out', n);
   await run(1.5);
   r = await p.evaluate(() => {
     const g = __game;
-    let e = g.enemies.find((x) => !x.dead && !x.brute && x.state === 'chase');
-    if (!e) { e = g.spawnIdol(false); g.P.invul = 9; for (let i = 0; i < 80; i++) g.step(1 / 60); }
+    let e = g.enemies.find((x) => !x.dead && x.kind === 'grunt' && x.state === 'chase');
+    if (!e) { e = g.spawnIdol('grunt'); g.P.invul = 9; for (let i = 0; i < 80; i++) g.step(1 / 60); }
     // the idol faces away from the camera, so the line across its raised fist passes over its head, not through it
     e.yaw = Math.PI; g.P.x = e.x; g.P.z = e.z - 1.9; g.P.invul = 9;
     e.state = 'windup'; e.t = 0.3; e.atk = 1; for (let i = 0; i < 2; i++) g.step(1 / 240);
@@ -112,7 +112,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   assert(r.made >= 1 && r.stump && r.top && r.blocked, 'pillar: ' + JSON.stringify(r));
   await shot('5-pillar');
   // stand still and get hit
-  const hp0 = await p.evaluate(() => { const g = __game; g.P.invul = 0; if (!g.enemies.some((e) => !e.dead)) g.spawnIdol(false); return g.P.hp; });
+  const hp0 = await p.evaluate(() => { const g = __game; g.P.invul = 0; if (!g.enemies.some((e) => !e.dead)) g.spawnIdol('grunt'); return g.P.hp; });
   await run(12);
   st = await p.evaluate(() => ({ hp: __game.P.hp, mode: __game.S.mode, bodies: __game.bodies.length, wave: __game.S.wave }));
   assert(st.hp < hp0, 'idols hit a wanderer who stands still: ' + st.hp);
@@ -123,6 +123,56 @@ const out = (n) => path.join(__dirname, '../out', n);
   assert(st.kills >= 4, 'taps fell idols: ' + JSON.stringify(st));
   await run(0.3);
   await shot('7-taps');
+  // a new level stops the world and offers three lessons; picking one changes the wanderer
+  await p.evaluate(() => { const g = __game; clearIdols(); g.S.autoPick = false; g.P.invul = 99; g.gainXp(g.S.need); for (let i = 0; i < 200 && !g.S.choosing; i++) g.step(1 / 60); });
+  await p.waitForSelector('#levelup:not([hidden])', { timeout: 5000 });
+  await shot('7b-level');
+  r = await p.evaluate(() => JSON.stringify(__game.P.up));
+  await p.click('#card2');
+  st = await p.evaluate(() => ({ choosing: __game.S.choosing, up: JSON.stringify(__game.P.up), hidden: document.getElementById('levelup').hidden }));
+  assert(!st.choosing && st.hidden && st.up !== r, 'a lesson was learned: ' + JSON.stringify(st));
+  await p.evaluate(() => { __game.S.autoPick = true; });
+  // a thrower keeps its distance and its fire reaches a wanderer who stands still
+  r = await p.evaluate(() => {
+    const g = __game, e = g.spawnIdol('thrower');
+    g.P.invul = 0; g.P.hp = g.P.maxHp; g.P.speed = 0;
+    let shots = 0;
+    for (let i = 0; i < 60 * 7; i++) { g.P.x = e.x; g.P.z = e.z + 8; g.step(1 / 60); if (g.bodies.some((b) => b.kind === 'shot')) shots++; }
+    return { shots, hp: g.P.hp, max: g.P.maxHp, state: e.state };
+  });
+  assert(r.shots > 0 && r.hp < r.max, 'thrown fire flies and lands: ' + JSON.stringify(r));
+  // the colossus: the legs go first, the rest comes down alive, and then the chest is in reach
+  r = await p.evaluate(() => {
+    const g = __game;
+    clearIdols();
+    const e = g.spawnIdol('colossus'), hold = () => { g.P.x = e.x - 2.3; g.P.z = e.z + 0.4; g.P.invul = 99; g.P.hp = g.P.maxHp; };
+    const cutAt = (bone, y, half) => { g.camera.updateMatrixWorld(); e.rig.root.updateMatrixWorld(true); const w = new THREE.Vector3(0, y, 0).applyMatrix4(e.rig.bones[bone].matrixWorld), v = w.clone().project(g.camera), sx = (v.x * 0.5 + 0.5) * g.canvas.clientWidth, sy = (0.5 - v.y * 0.5) * g.canvas.clientHeight; g.slash(sx - half, sy - 6, sx + half, sy + 6); for (let i = 0; i < 12; i++) { hold(); g.step(1 / 60); } return w.y; };
+    for (let i = 0; i < 230; i++) { hold(); g.step(1 / 60); }
+    const high = cutAt('chest', 0.3, 150), stood = { dead: e.dead, down: e.down }; // out of reach while it stands
+    const shin = cutAt('shinL', -0.15, 110), felled = { dead: e.dead, down: e.down };
+    for (let i = 0; i < 150; i++) { hold(); g.step(1 / 60); }
+    const chest = cutAt('chest', 0.3, 170);
+    return { high, stood, shin, felled, chest, dead: e.dead, level: g.S.level };
+  });
+  assert(!r.stood.dead && !r.stood.down, 'a standing colossus is too tall to cut down the middle: ' + JSON.stringify(r));
+  assert(r.felled.down && !r.felled.dead, 'cutting a leg brings it down alive: ' + JSON.stringify(r));
+  assert(r.dead && r.chest < 2.2, 'on the ground its chest is in reach: ' + JSON.stringify(r));
+  await run(0.4);
+  await shot('7c-colossus');
+  // the dash upgrade cuts whoever the dash passes
+  r = await p.evaluate(() => {
+    const g = __game;
+    clearIdols();
+    g.P.up.whirl = 1; g.applyUps();
+    const e = g.spawnIdol('grunt');
+    for (let i = 0; i < 90; i++) { g.P.x = e.x - 2; g.P.z = e.z; g.P.invul = 9; g.step(1 / 60); }
+    g.P.x = e.x - 2; g.P.z = e.z; g.P.yaw = Math.PI / 2; g.P.speed = 0; g.P.dashCd = 0; e.state = 'stagger'; e.t = 0;
+    const from = g.P.x;
+    g.dash();
+    for (let i = 0; i < 20; i++) g.step(1 / 60);
+    return { dead: e.dead, moved: g.P.x - from };
+  });
+  assert(r.dead && r.moved > 2, 'a dash with the upgrade cuts through: ' + JSON.stringify(r));
   // lose on purpose
   await p.evaluate(() => { const g = __game; g.P.invul = 0; g.hurt(999, g.P.x + 1, g.P.z); for (let i = 0; i < 40; i++) g.step(1 / 60); });
   st = await p.evaluate(() => __game.S.mode);
