@@ -1,0 +1,12 @@
+{
+  "name": "blade-and-clay",
+  "private": true,
+  "description": "A slasher prototype: every cut follows the line you draw, and whatever it opens falls apart for real",
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node test/geo.test.cjs && node test/phys.test.cjs && node build.cjs && node test/play.cjs"
+  },
+  "devDependencies": {
+    "three": "0.147.0"
+  }
+}
