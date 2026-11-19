@@ -1,0 +1,12 @@
+{
+  "name": "mad-bite",
+  "private": true,
+  "description": "Arcade 3D fishing: cast at the fish you see, fight it on a short line, haul it into the boat",
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node build.cjs && node test/play.cjs && PHONE=1 node test/play.cjs"
+  },
+  "devDependencies": {
+    "three": "0.147.0"
+  }
+}

@@ -1,0 +1,117 @@
+<title>Бешеный клёв</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;900&family=Onest:wght@500;700;800&display=swap">
+<style>
+/* layout: the sea fills the screen; score and clock sit in the top corners, the fight gauge hangs under them, sheets lie along the left edge so the water stays in view */
+:root {
+  --sea: #04263f; --plate: rgba(4, 30, 52, 0.78); --line: rgba(160, 235, 255, 0.3);
+  --foam: #f4fbff; --dim: #a9d4e6; --aqua: #2fe0d0; --coral: #ff5a5f; --sun: #ffd23f;
+  --display: "Unbounded", "Arial Black", Impact, "Segoe UI", sans-serif;
+  --ui: "Onest", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--sea); color: var(--foam); font-family: var(--ui); overflow: hidden; display: flex; flex-direction: column; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; touch-action: none; cursor: crosshair; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+#hud { position: absolute; inset: 0 0 auto 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-block: 12px 0; pointer-events: none; }
+.stat { display: grid; gap: 2px; }
+.stat b { font-family: var(--display); font-weight: 900; font-size: clamp(22px, 4.4vw, 34px); line-height: 1; font-variant-numeric: tabular-nums; color: var(--foam); text-shadow: 0 2px 0 var(--sea), 0 0 14px rgba(4, 38, 63, 0.8); }
+.stat span { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--foam); text-shadow: 0 1px 3px var(--sea), 0 0 8px var(--sea); }
+.stat.right { text-align: right; justify-items: end; }
+#combo { font-family: var(--display); font-weight: 900; font-size: 15px; color: var(--sea); background: var(--sun); padding: 4px 9px 3px; border-radius: 99px; transform: rotate(-4deg); justify-self: start; }
+#combo.bump { animation: bump 0.3s; }
+#time.low { color: var(--coral); }
+.side { display: flex; gap: 14px; align-items: flex-start; }
+#sound { pointer-events: auto; font: 700 11px var(--ui); letter-spacing: 0.06em; color: var(--foam); background: var(--plate); border: 1px solid var(--line); border-radius: 99px; padding: 7px 11px; cursor: pointer; }
+
+#fight { position: absolute; left: 50%; top: max(74px, 13%); width: min(340px, 70vw); transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; pointer-events: none; }
+#fname { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; text-shadow: 0 1px 3px var(--sea), 0 0 10px var(--sea); }
+.tens { position: relative; width: 100%; height: 14px; border-radius: 99px; background: var(--plate); outline: 2px solid var(--line); overflow: hidden; }
+#tfill { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--aqua) 0 55%, var(--sun) 72%, var(--coral) 88%); }
+#cue { font-family: var(--display); font-weight: 900; font-size: clamp(24px, 6vw, 40px); line-height: 1; color: var(--aqua); text-shadow: 0 3px 0 var(--sea), 0 0 18px rgba(4, 38, 63, 0.9); }
+#cue.stop { color: var(--coral); animation: shake 0.12s infinite; }
+
+#banner { position: absolute; left: 0; right: 0; top: 34%; text-align: center; font-family: var(--display); font-weight: 900; font-size: clamp(30px, 8vw, 72px); line-height: 1.05; color: var(--sun); text-shadow: 0 4px 0 var(--sea), 0 0 30px rgba(255, 90, 95, 0.7); opacity: 0; transform: scale(1.3) rotate(-3deg); transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
+#banner.on { opacity: 1; transform: rotate(-3deg); }
+#pops { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.pop { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 900; font-size: clamp(16px, 3.6vw, 26px); white-space: nowrap; color: var(--foam); text-shadow: 0 2px 0 var(--sea), 0 0 10px var(--sea); animation: rise 1.1s ease-out forwards; }
+.pop.gold { color: var(--sun); } .pop.bad { color: var(--coral); } .pop.cool { color: var(--aqua); }
+#hint { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding-block: 26px 12px; text-align: center; font-size: 14px; font-weight: 700; color: var(--foam); text-wrap: balance; background: linear-gradient(transparent, rgba(4, 38, 63, 0.75)); pointer-events: none; transition: opacity 0.8s; }
+#hint.gone { opacity: 0; }
+body.touch .for-keys, body:not(.touch) .for-touch { display: none; }
+
+#stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid var(--line); background: rgba(4, 38, 63, 0.3); pointer-events: none; }
+#knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: var(--aqua); opacity: 0.9; }
+
+.sheet { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 16px; padding-block: 24px; background: linear-gradient(100deg, rgba(4, 38, 63, 0.93) 0%, rgba(4, 38, 63, 0.72) 36%, rgba(4, 38, 63, 0) 74%); overflow-y: auto; }
+.sheet > * { max-width: min(460px, 100%); }
+.sheet h1 { margin: 0; font-family: var(--display); font-weight: 900; font-size: clamp(36px, 8vw, 80px); line-height: 0.95; letter-spacing: -0.02em; text-wrap: balance; color: var(--foam); text-shadow: 0 4px 0 var(--sea); }
+.sheet h1 em { font-style: normal; color: var(--sun); display: inline-block; transform: rotate(-3deg); }
+.sheet p { margin: 0; font-size: 16px; line-height: 1.45; color: var(--dim); }
+.sheet p b { color: var(--foam); }
+.keys { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; line-height: 1.35; color: var(--dim); }
+.keys b { color: var(--foam); font-weight: 800; }
+.go { font-family: var(--display); font-weight: 900; font-size: 19px; line-height: 1; color: var(--sea); background: var(--sun); border: 0; border-radius: 99px; padding: 17px 32px 16px; cursor: pointer; box-shadow: 0 5px 0 var(--coral); transition: transform 0.12s, box-shadow 0.12s; }
+.go:hover { transform: translateY(-2px); box-shadow: 0 7px 0 var(--coral); }
+.go:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--coral); }
+button:focus-visible { outline: 3px solid var(--foam); outline-offset: 3px; }
+#fail { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-size: 16px; background: var(--sea); }
+@keyframes rise { 0% { opacity: 0; margin-top: 10px; scale: 0.6; } 15% { opacity: 1; scale: 1.15; } 30% { scale: 1; } 100% { opacity: 0; margin-top: -70px; } }
+@keyframes bump { 40% { scale: 1.5; } }
+@keyframes shake { 50% { translate: 2px -1px; } }
+@media (max-width: 560px) {
+  .sheet { background: linear-gradient(180deg, rgba(4, 38, 63, 0.88), rgba(4, 38, 63, 0.6)); }
+  #sound { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { #banner, .go, #hint { transition: none; } #cue.stop, #combo.bump { animation: none; } }
+</style>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="pops"></div>
+  <div id="hud" class="gutter" hidden>
+    <div class="stat"><b id="score">0</b><span>Очки</span><i id="combo" hidden>x2</i></div>
+    <div class="side">
+      <button id="sound" type="button" aria-pressed="false">Звук вкл</button>
+      <div class="stat right"><b id="time">60</b><span>Секунд</span></div>
+    </div>
+  </div>
+  <div id="fight" hidden>
+    <div id="fname"></div>
+    <div class="tens"><i id="tfill"></i></div>
+    <div id="cue">ТЯНИ!</div>
+  </div>
+  <div id="banner"></div>
+  <p id="hint" class="gutter gone"><span class="for-keys">Щёлкни по рыбе в воде — туда полетит блесна. Клюнула — держи кнопку мыши. WASD — катер.</span><span class="for-touch">Ткни в рыбу — туда полетит блесна. Клюнула — держи палец. Левый палец ведёт катер.</span></p>
+  <div id="stick" hidden><div id="knob"></div></div>
+  <div id="title" class="sheet gutter">
+    <h1>Бешеный <em>клёв</em></h1>
+    <p>Минута на воде. Видишь рыбу — кидай блесну прямо в неё и тащи в катер. Каждый улов даёт <b>секунды</b>, улов подряд — <b>множитель</b>.</p>
+    <ul class="keys for-keys">
+      <li><b>Щелчок по воде</b> — заброс в эту точку</li>
+      <li><b>Держать кнопку</b> или <b>пробел</b> — тянуть рыбу</li>
+      <li>Рыба покраснела и рвётся — <b>отпусти</b>, иначе обрыв</li>
+      <li><b>WASD</b> — катер. Акулу можно таранить</li>
+    </ul>
+    <ul class="keys for-touch">
+      <li><b>Ткнуть в воду</b> — заброс в эту точку</li>
+      <li><b>Держать палец</b> — тянуть рыбу</li>
+      <li>Рыба покраснела и рвётся — <b>отпусти</b>, иначе обрыв</li>
+      <li><b>Левый палец</b> ведёт катер. Акулу можно таранить</li>
+    </ul>
+    <button class="go" id="start" type="button">На воду</button>
+  </div>
+  <div id="over" class="sheet gutter" hidden>
+    <h1>Время <em>вышло</em></h1>
+    <p id="overStats"></p>
+    <button class="go" id="again" type="button">Ещё заход</button>
+  </div>
+  <div id="pause" class="sheet gutter" hidden>
+    <h1>Пауза</h1>
+    <button class="go" id="resume" type="button">Дальше</button>
+  </div>
+  <div id="fail" class="gutter" hidden>Этому браузеру не хватает WebGL. Откройте страницу в свежем Chrome, Safari или Firefox.</div>
+</div>
+__SCRIPTS__
