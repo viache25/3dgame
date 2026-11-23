@@ -395,6 +395,15 @@ const out = (n) => path.join(__dirname, '../out', n);
   await p.mouse.up();
   // the ring under the cursor is for a mouse; with fingers there is no cursor to mark
   assert(st.kills === r.kills + 1 && (st.ring || process.env.PHONE), 'holding the button cuts what is under the cursor, and the ring marks the spot: ' + JSON.stringify(st));
+  // a button let go outside the page: the page never hears of it, so leaving the page must let go by itself, or he would strike for ever
+  if (!process.env.PHONE) {
+    r = await p.evaluate(() => { const g = __game; setOut([], []); return g.S.real; });
+    await p.mouse.move(640, 200); await p.mouse.down(); await run(0.4);
+    await p.evaluate(() => { document.documentElement.dispatchEvent(new MouseEvent('mouseleave')); __game.waves.length = 0; for (let i = 0; i < 40; i++) __game.step(1 / 60); });
+    st = await p.evaluate(() => { const g = __game, before = g.P.nextSlash; for (let i = 0; i < 90; i++) g.step(1 / 60); return { more: g.P.nextSlash !== before, flying: g.waves.length }; });
+    await p.mouse.up();
+    assert(!st.more && st.flying === 0, 'leaving the page lets go of the button: ' + JSON.stringify(st));
+  }
   await p.mouse.wheel(0, 300);
   assert(await p.evaluate(() => __game.S.zoom > 1.05), 'the wheel pulls the camera back');
   await p.mouse.wheel(0, -300);

@@ -1467,7 +1467,16 @@
     if (ev.button === 2) S.focusHeld = true;
     else if (ev.button === 0) press('mouse', x, y);
   });
-  window.addEventListener('mousemove', (ev) => { const [x, y] = local(ev); mouse.x = x; mouse.y = y; mouse.seen = true; if (swipe && swipe.id === 'mouse') move('mouse', x, y); });
+  // A button let go outside the page is never reported to it: the game would go on believing it is held, and strike for ever. So the button
+  // is not trusted to be down: every move of the mouse says which buttons are held, and leaving the page or losing the window lets go of both.
+  function dropMouse() { if (swipe && swipe.id === 'mouse') swipe = null; S.focusHeld = false; }
+  window.addEventListener('mousemove', (ev) => {
+    const [x, y] = local(ev); mouse.x = x; mouse.y = y; mouse.seen = true;
+    if (swipe && swipe.id === 'mouse') { if (ev.buttons & 1) move('mouse', x, y); else swipe = null; }
+    if (S.focusHeld && !(ev.buttons & 2)) S.focusHeld = false;
+  });
+  document.documentElement.addEventListener('mouseleave', dropMouse);
+  window.addEventListener('blur', dropMouse);
   window.addEventListener('mouseup', (ev) => {
     if (ev.button === 2) S.focusHeld = false;
     else if (ev.button === 0) { const [x, y] = local(ev); lift('mouse', x, y, true); }
