@@ -60,10 +60,10 @@
 
   // ---- the look of the blade: what it leaves in the air and on whatever it opens
   const STYLES = [
-    { id: 'ember', name: 'Жар', text: 'Раскалённая сталь, срезы тлеют оранжевым', css: '#ff8a3c', hotA: [1.0, 0.45, 0.1], hotB: [1.0, 0.1, 0.01], trailA: [2.0, 0.7, 0.14], trailB: [0.8, 0.14, 0.02], spark: [2.2, 0.8, 0.12], ghost: [1.0, 0.4, 0.1], flame: 0 },
+    { id: 'ember', name: 'Жар', text: 'Клинок в рыжем огне, срезы горят и тлеют', css: '#ff8a3c', hotA: [1.0, 0.45, 0.1], hotB: [1.0, 0.1, 0.01], trailA: [2.0, 0.7, 0.14], trailB: [0.8, 0.14, 0.02], spark: [2.2, 0.8, 0.12], ghost: [1.0, 0.4, 0.1], flame: 1 },
     { id: 'violet', name: 'Лиловое пламя', text: 'Клинок горит, срезы долго полыхают фиолетовым', css: '#b46cff', hotA: [0.8, 0.4, 1.0], hotB: [0.42, 0.06, 1.0], trailA: [1.25, 0.4, 2.6], trailB: [0.5, 0.06, 1.5], spark: [1.0, 0.3, 2.3], ghost: [0.55, 0.2, 1.0], flame: 1 },
-    { id: 'frost', name: 'Иней', text: 'Холодный блеск, срезы искрят голубым', css: '#7fd8ff', hotA: [0.7, 0.95, 1.0], hotB: [0.08, 0.4, 1.0], trailA: [1.1, 2.0, 2.6], trailB: [0.1, 0.5, 1.4], spark: [1.2, 2.0, 2.6], ghost: [0.3, 0.7, 1.0], flame: 0 },
-    { id: 'blood', name: 'Алая луна', text: 'Тяжёлый красный след цвета заката', css: '#ff3b4a', hotA: [1.0, 0.16, 0.12], hotB: [0.7, 0.0, 0.06], trailA: [2.6, 0.3, 0.3], trailB: [1.0, 0.02, 0.08], spark: [2.6, 0.35, 0.3], ghost: [1.0, 0.1, 0.12], flame: 0.4 },
+    { id: 'frost', name: 'Иней', text: 'Холодное голубое пламя, срезы искрят', css: '#7fd8ff', hotA: [0.7, 0.95, 1.0], hotB: [0.08, 0.4, 1.0], trailA: [1.1, 2.0, 2.6], trailB: [0.1, 0.5, 1.4], spark: [1.2, 2.0, 2.6], ghost: [0.3, 0.7, 1.0], flame: 0.7 },
+    { id: 'blood', name: 'Алая луна', text: 'Тёмно-красный огонь, тяжёлый след', css: '#ff3b4a', hotA: [1.0, 0.16, 0.12], hotB: [0.7, 0.0, 0.06], trailA: [2.6, 0.3, 0.3], trailB: [1.0, 0.02, 0.08], spark: [2.6, 0.35, 0.3], ghost: [1.0, 0.1, 0.12], flame: 0.9 },
   ];
   const reticle = new T.Mesh(new T.RingGeometry(0.36, 0.43, 44), new T.MeshBasicMaterial({ color: new T.Color(1, 1, 1), transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
   reticle.rotation.x = -Math.PI / 2; reticle.renderOrder = 3; reticle.visible = false;
@@ -74,6 +74,8 @@
     SHARED.uHotA.value.fromArray(style.hotA); SHARED.uHotB.value.fromArray(style.hotB);
     document.documentElement.style.setProperty('--style', style.css);
     reticle.material.color.setRGB(style.trailA[0] * 0.7, style.trailA[1] * 0.7, style.trailA[2] * 0.7);
+    bladeFire.u.uColA.value.fromArray(style.trailA); bladeFire.u.uColB.value.fromArray(style.trailB);
+    const m = Math.max(style.trailA[0], style.trailA[1], style.trailA[2]); bladeLight.color.setRGB(style.trailA[0] / m, style.trailA[1] / m, style.trailA[2] / m);
   }
   // a crescent in the colours of the blade
   function crescent(p, f, s, a0, a1, r0, r1, T0, o) {
@@ -145,6 +147,27 @@
   // ---- the wanderer
   const katana = MODELS.katana();
   scene.add(katana);
+  // the blade is on fire: sheets of flame along it, embers climbing off it, and a light of its own that everything near it catches
+  const bladeFire = makeBladeFire(), bladeLight = new T.PointLight(new T.Color(1, 0.5, 0.2), 2, 8, 1.5), bladeAxis = new T.Vector3();
+  katana.add(bladeFire.mesh);
+  scene.add(bladeLight);
+  function burnBlade(dt) {
+    P.fireK = Math.max(0, (P.fireK || 0) - dt * 3.2);
+    const on = katana.visible, k = P.fireK + (P.over ? 0.6 : 0), len = katana.scale.y;
+    bladeFire.u.uTime.value = S.real; bladeFire.u.uGain.value = 1.15 + 1.3 * k;
+    bladeAxis.set(0, 1, 0).applyQuaternion(katana.quaternion);
+    bladeLight.visible = on;
+    bladeLight.position.copy(katana.position).addScaledVector(bladeAxis, 0.65 * len); bladeLight.position.y = Math.max(0.35, bladeLight.position.y);
+    bladeLight.intensity = (1.7 + 0.5 * Math.sin(S.real * 23) + 0.35 * Math.sin(S.real * 57)) * (1 + 1.5 * k);
+    if (!on) { SFX.blade(0); return; }
+    SFX.blade(S.paused || S.mode === 'dead' ? 0.03 : 0.08 + 0.24 * Math.min(1, k) + 0.03 * Math.min(1, P.speed / 6));
+    const c = style.trailB, hot = style.trailA;
+    const rate = dt * (46 + 190 * k);
+    for (let n = Math.floor(rate) + (rnd() < rate % 1 ? 1 : 0); n > 0; n--) { // tongues that leave the blade and climb
+      const at = (0.15 + rnd() * 1.05) * len, w = rnd() < 0.3 ? hot : c, j = 0.7 + rnd() * 0.6;
+      SPARKS.add(katana.position.x + bladeAxis.x * at + (rnd() - 0.5) * 0.08, katana.position.y + bladeAxis.y * at, katana.position.z + bladeAxis.z * at + (rnd() - 0.5) * 0.08, (rnd() - 0.5) * 0.7, 0.9 + rnd() * 1.5, (rnd() - 0.5) * 0.7, w[0] * j, w[1] * j, w[2] * j, 1, 0.09 + rnd() * 0.11, 0.2 + rnd() * 0.3, 2, -4.5);
+    }
+  }
   function newHero() {
     if (P.rig) { scene.remove(P.rig.root); MODELS.dispose(P.rig); }
     P.rig = MODELS.makeRig(MODELS.hero());
@@ -722,10 +745,14 @@
     // the third blow of a quick combo is a full turn with a wider, longer cut
     const heavy = job.heavy, A = heavy ? 2.5 : 1.5, T0 = heavy ? 0.17 : 0.11, R = P.reach * (heavy ? 1.18 : 1);
     P.sw = { t: 0, T: T0, pv, f, s, a0: -A, a1: A, turn, heavy };
-    P.stance = 1; P.front = turn;
-    crescent(pv, f, s, -A, A, 0.45, R * 1.06, T0, heavy ? { gain: 1.35, fade: 0.3 } : null);
+    P.stance = 1; P.front = turn; P.fireK = heavy ? 1.6 : 1;
+    crescent(pv, f, s, -A, A, 0.45, R * 1.06, T0, heavy ? { gain: 1.5, fade: 0.36 } : { gain: 1.15, fade: 0.28 });
+    for (let i = 0; i < (heavy ? 26 : 14); i++) { // fire torn off the blade all along the arc
+      const g = lerp(-A, A, rnd()), c = Math.cos(g), sn = Math.sin(g), r = 0.9 + rnd() * (R - 0.9), w = rnd() < 0.35 ? style.trailA : style.trailB, j = 0.7 + rnd() * 0.6;
+      SPARKS.add(pv.x + (f.x * c + s.x * sn) * r, Math.max(0.1, pv.y + (f.y * c + s.y * sn) * r), pv.z + (f.z * c + s.z * sn) * r, (-f.x * sn + s.x * c) * (2 + rnd() * 4), 0.6 + rnd() * 1.6 + (-f.y * sn + s.y * c) * 2, (-f.z * sn + s.z * c) * (2 + rnd() * 4), w[0] * j, w[1] * j, w[2] * j, 1, 0.1 + rnd() * 0.13, 0.25 + rnd() * 0.35, 2.2, -3.5);
+    }
     if (heavy) { ghostAt(P.x, P.z, P.yaw + 2.1, 0.22); ghostAt(P.x, P.z, P.yaw + 4.2, 0.3); }
-    SFX.swing();
+    SFX.swing(heavy);
     const e = job.vp.elements, lx = job.bx - job.ax, ly = job.by - job.ay, len2 = lx * lx + ly * ly;
     const want = (x, y, z, r) => {
       if (y - r * 0.3 > (P.over ? 4.8 : TOP)) return false;
@@ -1615,6 +1642,7 @@
       updateWaves(dt);
     } else poseHero(dtR);
     updateBodies(dt);
+    burnBlade(dtR);
     SPARKS.step(dt + dtR * 0.02); DUST.step(dt); TRAILS.step(dtR, S.real); STREAKS.step(dtR, camera); GHOSTS.step(dtR);
     updateCamera(dtR);
     S.hurtK = Math.max(0, S.hurtK - dtR * 1.8);

@@ -1,6 +1,6 @@
 // Every sound is made on the spot from noise and sine waves; there are no recordings.
 const SFX = (function () {
-  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0;
+  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0, bed = null;
   function start() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -24,6 +24,13 @@ const SFX = (function () {
     const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.13; lg.gain.value = 170;
     lfo.connect(lg); lg.connect(f.frequency); lfo.start();
     src.connect(f); f.connect(wind); wind.connect(fx); src.start();
+    { // the blade burns all the time: a low bed of fire under everything, which swells when the blade moves
+      const s = ac.createBufferSource(), f = ac.createBiquadFilter(), tr = ac.createGain(), m = ac.createBufferSource(), md = ac.createGain();
+      s.buffer = noise; s.loop = true; s.playbackRate.value = 0.5; f.type = 'lowpass'; f.frequency.value = 620; f.Q.value = 0.8;
+      m.buffer = noise; m.loop = true; m.playbackRate.value = 0.003; md.gain.value = 0.6; tr.gain.value = 1; m.connect(md); md.connect(tr.gain);
+      bed = ac.createGain(); bed.gain.value = 0;
+      s.connect(f); f.connect(tr); tr.connect(bed); bed.connect(fx); s.start(); m.start();
+    }
   }
   // The track: four bars in D minor that play themselves. Out of a fight only the pad and a slow bass; in one, drums and a running line join in.
   const S16 = 60 / 104 / 4, ROOTS = [38, 38, 34, 36], BASS = [0, null, 0, null, 0, null, 3, null, 0, null, 0, 10, null, 7, 10, null], RUN = [0, 3, 7, 10, 12, 10, 7, 3];
@@ -57,6 +64,20 @@ const SFX = (function () {
     }
   }
   const now = () => ac.currentTime;
+  // Fire. Dark noise through a filter that opens and closes, with slow noise riding on its level: that unevenness is what makes it a roar and not
+  // a hiss. It swells fast, holds for nearly half its length, and only then dies away, so it is heard as a body of sound and not as a pop.
+  function roar(dur, vol, lo, hi, delay) {
+    const t = now() + (delay || 0), s = ac.createBufferSource(), f = ac.createBiquadFilter(), body = ac.createBiquadFilter(), bg = ac.createGain(), tr = ac.createGain(), g = ac.createGain(), m = ac.createBufferSource(), md = ac.createGain();
+    s.buffer = noise; s.loop = true; s.playbackRate.value = 0.45 + Math.random() * 0.3;
+    f.type = 'lowpass'; f.Q.value = 1.4;
+    f.frequency.setValueAtTime(lo, t); f.frequency.exponentialRampToValueAtTime(hi, t + dur * 0.2); f.frequency.setValueAtTime(hi, t + dur * 0.4); f.frequency.exponentialRampToValueAtTime(lo * 0.7, t + dur);
+    body.type = 'bandpass'; body.frequency.value = Math.min(520, lo * 1.6); body.Q.value = 1.6; bg.gain.value = 1.3; // the chest of the roar
+    m.buffer = noise; m.loop = true; m.playbackRate.value = 0.004 + Math.random() * 0.006; md.gain.value = 0.9;
+    tr.gain.value = 1; m.connect(md); md.connect(tr.gain);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + Math.min(0.05, dur * 0.12)); g.gain.linearRampToValueAtTime(vol * 0.8, t + dur * 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(tr); s.connect(body); body.connect(bg); bg.connect(tr); tr.connect(g); g.connect(fx);
+    s.start(t, Math.random()); m.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05); m.stop(t + dur + 0.05);
+  }
   function burst(freq, q, type, dur, vol, sweepTo, delay) {
     const t = now() + (delay || 0), s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
     s.buffer = noise; s.loop = true; s.playbackRate.value = 0.7 + Math.random() * 0.6;
@@ -78,38 +99,47 @@ const SFX = (function () {
     mute(m) { muted = m; if (out) out.gain.value = m ? 0 : 0.9; },
     volume(v) { fxVol = v; if (fx) fx.gain.value = v; },
     musicVolume(v) { musVol = v; if (mus) mus.gain.value = v; },
-    music(h) { heat = h; }, // 0: quiet, between fights; 1: a fight is on
+    music(h) { heat = h; },
+    blade(k) { if (bed) bed.gain.setTargetAtTime(k, ac.currentTime, 0.06); }, // how loud the fire on the blade is just now // 0: quiet, between fights; 1: a fight is on
     slow(k) { if (ac) lp.frequency.setTargetAtTime(k < 0.5 ? 1100 : 18000, now(), 0.08); },
-    swing() { if (ok()) burst(900, 1.2, 'bandpass', 0.16, 0.22, 3600); },
-    // the blade going through: a ring of steel over a crack of clay; n is how many pieces it opened
+    // a swing of the burning blade: the roar of the fire dragged through the air, with a hiss on top and weight underneath
+    swing(big) {
+      if (!ok()) return;
+      const k = big ? 1.5 : 1;
+      roar(0.62 * k, 1.0 * k, 220, 1500, 0); roar(0.42 * k, 0.45, 700, 3200, 0.02);
+      burst(5200, 0.7, 'highpass', 0.24 * k, 0.07, 0, 0.02);
+      tone(84, 0.42 * k, 0.3, 'sine', 42);
+    },
+    // the blade going through: a thump of fire let loose, a sizzle as it sears, and only a trace of steel; n is how many pieces it opened
     cut(n) {
       if (!ok()) return;
-      const k = 0.94 + Math.random() * 0.14, v = Math.min(0.2, 0.09 + n * 0.012);
-      tone(2140 * k, 0.34, v, 'sine'); tone(3390 * k, 0.26, v * 0.6, 'sine'); tone(5230 * k, 0.16, v * 0.35, 'sine');
-      burst(5200, 0.8, 'highpass', 0.07, 0.18);
-      burst(700, 0.7, 'lowpass', 0.2, Math.min(0.5, 0.2 + n * 0.03), 160, 0.01);
-      tone(92, 0.22, Math.min(0.45, 0.16 + n * 0.03), 'sine', 46, 0.01);
+      const v = Math.min(1, 0.55 + n * 0.05);
+      roar(0.8, 1.15 * v, 170, 1000, 0); roar(0.5, 0.55 * v, 900, 4000, 0.01);
+      tone(62, 0.6, 0.55 * v, 'sine', 30); tone(118, 0.22, 0.25 * v, 'triangle', 50);
+      burst(6400, 0.7, 'highpass', 0.34, 0.12 * v, 0, 0.03);
+      tone(1900 * (0.94 + Math.random() * 0.12), 0.2, 0.035, 'sine');
     },
+    // a part hitting the ground: a clink of armour with a little weight, not a pop
     thud(speed) {
-      if (!ok() || now() - lastThud < 0.045) return;
+      if (!ok() || now() - lastThud < 0.075) return;
       lastThud = now();
-      const v = Math.min(0.32, speed * 0.045);
-      burst(260 + Math.random() * 160, 0.8, 'lowpass', 0.11, v, 90); tone(70 + Math.random() * 30, 0.1, v * 0.8, 'sine', 40);
+      const v = Math.min(0.14, speed * 0.02);
+      burst(1300 + Math.random() * 2200, 7, 'bandpass', 0.07, v * 1.6); burst(170, 0.8, 'lowpass', 0.07, v);
     },
     rise() { if (ok()) { burst(180, 0.9, 'lowpass', 0.9, 0.2, 520); tone(58, 0.9, 0.12, 'sawtooth', 96); } },
     windup() { if (ok()) tone(74, 0.42, 0.11, 'sawtooth', 148); },
     // one of many cuts in a row: each a little higher than the last
-    flurry(i) { if (ok()) { const k = 1 + i * 0.045; tone(2400 * k, 0.16, 0.1, 'sine'); tone(3700 * k, 0.1, 0.06, 'sine'); burst(4200 + i * 180, 1.0, 'bandpass', 0.07, 0.16, 7000); } },
+    flurry(i) { if (ok()) { const k = 1 + i * 0.05; roar(0.26, 0.55, 500 * k, 2600 * k, 0); tone(2400 * k, 0.12, 0.05, 'sine'); burst(5200 + i * 200, 0.9, 'highpass', 0.08, 0.1); } },
     // the blade goes home: a click, and then everything it passed through lets go
     sheath() { if (ok()) { tone(1900, 0.05, 0.3, 'square', 900); burst(2600, 2.0, 'bandpass', 0.05, 0.3); tone(70, 0.5, 0.5, 'sine', 30, 0.04); burst(500, 0.7, 'lowpass', 0.45, 0.45, 80, 0.04); } },
-    wave() { if (ok()) { burst(500, 0.8, 'bandpass', 0.5, 0.3, 3200); tone(240, 0.5, 0.16, 'sawtooth', 620); } },
+    wave() { if (ok()) { roar(1.1, 0.95, 200, 2200, 0); roar(0.8, 0.5, 900, 4200, 0.04); tone(70, 0.7, 0.4, 'sine', 34); } },
     shot() { if (ok()) { tone(1500, 0.14, 0.14, 'sawtooth', 300); burst(3000, 1.2, 'bandpass', 0.08, 0.14, 900); } },
     // steel meets steel and gives nothing
     parry() { if (ok()) { const k = 0.92 + Math.random() * 0.16; tone(3100 * k, 0.4, 0.2, 'sine'); tone(4650 * k, 0.3, 0.12, 'sine'); tone(1240 * k, 0.12, 0.2, 'square', 700); burst(6000, 0.8, 'highpass', 0.05, 0.25); } },
     quake() { if (ok()) { burst(300, 0.7, 'lowpass', 0.6, 0.55, 50); tone(52, 0.7, 0.5, 'sine', 26); tone(31, 0.9, 0.35, 'sine', 22, 0.03); } },
     slam() { if (ok()) { burst(420, 0.7, 'lowpass', 0.22, 0.4, 70); tone(64, 0.3, 0.4, 'sine', 34); } },
     hurt() { if (ok()) { tone(160, 0.28, 0.4, 'square', 52); burst(1500, 0.8, 'bandpass', 0.14, 0.25, 400); } },
-    dash() { if (ok()) burst(500, 0.9, 'bandpass', 0.2, 0.2, 2400); },
+    dash() { if (ok()) { roar(0.3, 0.4, 400, 2200, 0); burst(500, 0.9, 'bandpass', 0.2, 0.12, 2400); } },
     focus(on) { if (ok()) { tone(on ? 180 : 420, 0.5, 0.12, 'sine', on ? 420 : 160); } },
     gong() { if (ok()) for (const [f, v, d] of [[98, 0.3, 2.6], [147.5, 0.14, 2.0], [196.4, 0.1, 1.5], [262, 0.05, 1.1]]) tone(f, d, v, 'sine'); },
     fall() { if (ok()) { tone(220, 1.4, 0.3, 'sawtooth', 40); burst(300, 0.7, 'lowpass', 1.2, 0.3, 60); } },

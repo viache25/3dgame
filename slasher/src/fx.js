@@ -123,3 +123,29 @@ function makeGhosts(scene) {
     },
   };
 }
+
+// Fire on the blade: two crossed sheets along it, and the flame is whatever of them the noise lets through. The noise runs from grip to tip,
+// so the tongues climb the blade; the middle is white-hot and the edges take the colour of the style.
+function makeBladeFire() {
+  const w = 0.2, y0 = 0.1, y1 = 1.34, pos = [], uv = [], idx = [];
+  for (const [ax, az] of [[1, 0], [0, 1]]) { const b = pos.length / 3; pos.push(-w * ax, y0, -w * az, w * ax, y0, w * az, -w * ax, y1, -w * az, w * ax, y1, w * az); uv.push(0, 0, 1, 0, 0, 1, 1, 1); idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+  const g = new T.BufferGeometry();
+  g.setAttribute('position', new T.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute('uv', new T.BufferAttribute(new Float32Array(uv), 2)); g.setIndex(idx);
+  const mat = new T.ShaderMaterial({
+    transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, fog: false,
+    uniforms: { uTime: { value: 0 }, uGain: { value: 1 }, uColA: { value: new T.Vector3(1, 0.5, 0.1) }, uColB: { value: new T.Vector3(1, 0.1, 0) } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 uColA, uColB; uniform float uTime, uGain; varying vec2 vUv; ${NOISE_GLSL}
+      void main(){
+        float core = 1.0 - abs(vUv.x - 0.5) * 2.0;
+        float n = noise(vec2(vUv.x * 4.0, vUv.y * 7.0 - uTime * 6.5)) * 0.62 + noise(vec2(vUv.x * 9.0 + 3.1, vUv.y * 16.0 - uTime * 12.0)) * 0.38;
+        float f = smoothstep(0.34, 0.9, core + (n - 0.5) * 1.15);
+        f *= smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.72, vUv.y + (n - 0.5) * 0.25);
+        vec3 col = mix(uColB, uColA, smoothstep(0.25, 0.85, core)) * f + vec3(1.0, 0.95, 0.85) * smoothstep(0.8, 1.0, core) * f * 0.7;
+        gl_FragColor = vec4(col * uGain, 1.0);
+      }`,
+  });
+  const mesh = new T.Mesh(g, mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 7;
+  return { mesh, u: mat.uniforms };
+}
