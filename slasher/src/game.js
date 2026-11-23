@@ -1734,18 +1734,25 @@
       else { b.mesh.scale.setScalar(1 - k * k); b.mesh.position.y = b.y - k * 0.2; }
     }
   }
-  const camAt = new T.Vector3(0, 1, 0);
+  const camAt = new T.Vector3(0, 1, 0), camVel = new T.Vector3();
   function updateCamera(dt) {
     const f = S.focusK, tall = camera.aspect < 0.9, ox = S.arsenal ? (tall ? 1.2 : -3.4) : 0, oz = S.arsenal && tall ? 6.6 : 0;
     const pitch = lerp(0.62, 0.31, f), dist = lerp(11.4, 7.6, f) * (tall ? 1.3 : 1);
-    v1.set(P.x + ox + P.dx * Math.min(P.speed, 6.3) * 0.12 * (1 - f), 1.0 + 0.35 * f, P.z + oz + P.dz * Math.min(P.speed, 6.3) * 0.12 * (1 - f));
-    camAt.lerp(v1, 1 - Math.exp(-dt * 10));
-    S.kick = Math.max(0, S.kick - dt * 6);
+    // The camera looks at where he is going, not where he is: the moment a lunge or a leap begins it sets off for the far end, so it is
+    // already moving when he gets there. It is carried by a spring, so it gathers speed and sheds it and never jumps.
+    let tx = P.x, tz = P.z;
+    if (P.lunge) { tx = P.lunge.x1; tz = P.lunge.z1; }
+    else if (P.act && P.act.x1 != null && !P.act.landed) { tx = P.act.x1; tz = P.act.z1; }
+    const lead = 0.14 * (1 - f) * (P.lunge || P.act ? 0 : 1);
+    v1.set(tx + ox + clamp(P.vx, -7, 7) * lead, 1.0 + 0.35 * f, tz + oz + clamp(P.vz, -7, 7) * lead);
+    const om = 2 / 0.15, xk = om * dt, ex = 1 / (1 + xk + 0.48 * xk * xk + 0.235 * xk * xk * xk);
+    for (const ax of ['x', 'y', 'z']) { const ch = camAt[ax] - v1[ax], tmp = (camVel[ax] + om * ch) * dt; camVel[ax] = (camVel[ax] - om * tmp) * ex; camAt[ax] = v1[ax] + (ch + tmp) * ex; }
+    S.kick = Math.max(0, S.kick - dt * 6); S.kickS = lerp(S.kickS || 0, S.kick, 1 - Math.exp(-dt * 22)); // the punch-in eases on too
     S.shake = Math.max(0, S.shake - dt * 2.4);
-    const sh = S.shake * S.shake * 0.5 * (OPT.shake / 100), wob = Math.sin(S.real * 78) * sh * 0.9, kd = dist * (1 - 0.06 * S.kick) * S.zoom;
+    const sh = S.shake * S.shake * 0.5 * (OPT.shake / 100), wob = Math.sin(S.real * 78) * sh * 0.9, kd = dist * (1 - 0.06 * S.kickS) * S.zoom;
     camera.position.set(camAt.x + (rnd() - 0.5) * sh * 0.6 + S.shx * wob, camAt.y + Math.sin(pitch) * kd + (rnd() - 0.5) * sh * 0.6, camAt.z + Math.cos(pitch) * kd + S.shz * wob);
     camera.lookAt(camAt.x, camAt.y + 0.3 * f, camAt.z);
-    const fov = (tall ? 54 : 40) - 2.2 * S.kick;
+    const fov = (tall ? 54 : 40) - 2.2 * S.kickS;
     if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
     W.follow(P.x, P.z);
   }
