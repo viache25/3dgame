@@ -246,7 +246,7 @@ const out = (n) => path.join(__dirname, '../out', n);
     };
     window.go = (sec) => { for (let i = 0; i < Math.round(sec * 60); i++) g.step(1 / 60); };
   });
-  r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 3], [0.9, 3.6], [-0.8, 3.4]]), parts = g.S.parts; const ok = g.cast(slots[0]); go(0.45); return { ok, hidden: !g.P.rig.root.visible, scale: g.S.scale, mid: es.filter((e) => e.dead).length, parts: g.S.parts - parts, bodies: g.bodies.length }; });
+  r = await p.evaluate(() => { const g = __game, es = setOut(['storm'], [[0, 3], [0.9, 3.6], [-0.8, 3.4]]), parts = g.S.parts; const ok = g.cast(slots[0]); go(0.45); return { ok, hidden: !g.P.rig.root.visible, scale: g.S.scale, mid: es.filter((e) => e.dead).length, parts: g.S.parts - parts, bodies: g.bodies.length }; });
   assert(r.ok && r.hidden && r.scale < 0.1, 'thousand cuts: the wanderer is gone and the world stands still: ' + JSON.stringify(r));
   await shot('9a-storm');
   r = await p.evaluate(() => { const g = __game; go(1.4); return { act: !!g.P.act, shown: g.P.rig.root.visible, scale: g.S.scale, alive: g.enemies.filter((e) => !e.dead).length, bodies: g.bodies.length, z: g.P.z, cd: g.P.cd.storm, cool: g.COOL }; });
@@ -256,11 +256,13 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game; setOut(['storm'], [[0.3, -16], [-0.5, -16.6]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(0, 0, -16).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; });
   if (!process.env.PHONE) { assert(r[1] > 5 && r[1] < 700, 'the far spot is on the screen: ' + r); await p.mouse.move(r[0], r[1]); await p.keyboard.press('Digit2'); await run(2); st = await p.evaluate(() => ({ z: __game.P.z, alive: __game.enemies.filter((e) => !e.dead).length })); assert(st.z < -15 && st.alive === 0, 'thousand cuts reaches the far cursor: ' + JSON.stringify(st)); await p.evaluate(() => __game.noMouse()); }
   await shot('9b-storm-after');
-  r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 5], [0.6, 9], [-0.7, 13]]); const ok = g.cast(slots[1]); go(0.3); const flying = g.waves.length; return { ok, flying, first: es[0].dead }; });
-  assert(r.ok && r.flying === 1, 'crescent: one is in the air: ' + JSON.stringify(r));
+  // a click at something out of reach throws the blow: a crescent of fire flies that way and cuts what it meets; he does not move
+  r = await p.evaluate(() => { const g = __game, es = setOut([], [[0.3, -7], [-0.4, -10]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(0, 0, -8).project(g.camera); g.tapSlash((v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight); go(0.1); const flying = g.waves.length; go(1.2); return { flying, left: g.waves.length, dead: es.filter((e) => e.dead).length, moved: Math.hypot(g.P.x, g.P.z) }; });
+  assert(r.flying === 1 && r.left === 0 && r.dead === 2 && r.moved < 0.05, 'a far click throws a crescent: ' + JSON.stringify(r));
   await shot('9c-wave');
-  r = await p.evaluate(() => { const g = __game; go(2.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, act: !!g.P.act }; });
-  assert(r.alive === 0 && r.flying === 0 && !r.act, 'crescent: it cut all three on its way and died out: ' + JSON.stringify(r));
+  // with a synth in reach that way, the same click is an ordinary blow and nothing is thrown
+  r = await p.evaluate(() => { const g = __game, es = setOut([], [[0.2, -1.8]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(0, 0, -8).project(g.camera); g.tapSlash((v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight); go(0.3); return { flying: g.waves.length, dead: es[0].dead }; });
+  assert(r.flying === 0 && r.dead, 'a click with a synth in reach is a blow: ' + JSON.stringify(r));
   r = await p.evaluate(() => { const g = __game, es = setOut(['spin', 'iai'], [[2.4, 0], [-2.2, 0.8], [0.3, -2.5], [0.5, 2.6], [7, 7]]); const ok = g.cast(slots[0]); go(0.4); return { ok, fires: g.FIRES.count(), up: g.P.y, turned: g.P.act && g.P.act.spin }; });
   assert(r.ok && r.fires > 20 && r.up > 0.1 && r.turned > 6, 'whirl: he is off the ground, turning, in a column of fire: ' + JSON.stringify(r));
   await shot('9d-spin');
@@ -298,9 +300,14 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game, es = setOut(['guard'], [[0.3, 2.1], [-0.6, 2.4], [0.2, 6]]); g.cast('guard'); go(0.7); const fires = g.FIRES.count(); go(1.1); return { front: es[0].dead && es[1].dead, far: es[2].dead, fires, act: !!g.P.act }; });
   assert(r.front && !r.far && r.fires > 8 && !r.act, 'guard: a wheel of fire that cuts what stands close in front of it, and not what stands off: ' + JSON.stringify(r));
   r = await p.evaluate(() => { const g = __game; setOut(['guard', 'fan'], [[0, 6], [-1.9, 6], [1.9, 6]]); const ok = g.cast(slots[1]); go(0.12); return { ok, flying: g.waves.length }; });
-  assert(r.ok && r.flying === 3, 'fan: three discs are out: ' + JSON.stringify(r));
+  assert(r.ok && r.flying === 5, 'fan: five discs are out: ' + JSON.stringify(r));
   await shot('9g-fan');
   r = await p.evaluate(() => { const g = __game; go(1.3); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length }; });
+  const fanFirst = r;
+  // and a disc bends toward a synth that stands off its line
+  r = await p.evaluate(() => { const g = __game, es = setOut(['fan'], [[3.6, 9]]); g.cast('fan'); go(1.4); return { dead: es[0].dead }; });
+  assert(r.dead, 'fan: a disc turns onto a synth off its line: ' + JSON.stringify(r));
+  r = fanFirst;
   assert(r.alive === 0 && r.flying === 0, 'fan: each disc found its synth: ' + JSON.stringify(r));
   r = await p.evaluate(() => { const g = __game; setOut(['leap', 'fan'], [[0, 7], [1.5, 7.5], [-1.4, 6.6], [0.5, 8.6]]); const ok = g.cast(slots[0]); go(0.2); return { ok, up: g.P.y }; });
   assert(r.ok && r.up > 1.5, 'leap: he is in the air: ' + JSON.stringify(r));
@@ -378,7 +385,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   });
   assert(r.first && r.second && r.one > 0.04 && r.two > r.one && r.rest < 0.02, 'each cut stokes the flame, and at rest it dies down: ' + JSON.stringify(r));
   // the combo: five blows, and the third, fourth and fifth are a turn, two turns in the air, and a blow down
-  r = await p.evaluate(() => { const g = __game; setOut([], []); const seen = []; for (let i = 0; i < 5; i++) { g.P.heat = 1; g.tapSlash(g.canvas.clientWidth * 0.55, g.canvas.clientHeight * 0.4); for (let k = 0; k < 20 && !g.P.sw; k++) g.step(1 / 60); /* he may have to leap to the spot first */ seen.push(g.P.sw ? [g.P.sw.turns, g.P.sw.hop > 0] : null); go(0.65); /* long enough for the blow to be over before the next */ } return seen; });
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const seen = []; for (let i = 0; i < 5; i++) { g.P.heat = 1; g.camera.updateMatrixWorld(); const v = new THREE.Vector3(g.P.x + 1.3, 0, g.P.z).project(g.camera); g.tapSlash((v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight); /* close by, so it is a blow and not a throw */ for (let k = 0; k < 20 && !g.P.sw; k++) g.step(1 / 60); /* he may have to leap to the spot first */ seen.push(g.P.sw ? [g.P.sw.turns, g.P.sw.hop > 0] : null); go(0.65); /* long enough for the blow to be over before the next */ } return seen; });
   assert.deepStrictEqual(r, [[0, false], [0, false], [1, false], [2, true], [0, false]], 'the five blows of the combo: ' + JSON.stringify(r));
   // mouse and keyboard: holding the button on a synth keeps cutting it, the wheel moves the camera, Tab opens the arsenal over a pause
   r = await p.evaluate(() => { const g = __game; setOut([], [[1.6, -0.3]]); const e = g.enemies[0]; for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(e.x, 1.1 * e.scale, e.z).project(g.camera); return { x: (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y: (0.5 - v.y * 0.5) * g.canvas.clientHeight, kills: g.S.kills }; });
@@ -393,7 +400,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   await p.mouse.wheel(0, -300);
   await p.keyboard.press('Tab');
   st = await p.evaluate(() => ({ paused: __game.S.paused, open: !document.getElementById('arsenal').hidden, chips: document.querySelectorAll('#abils .abil').length }));
-  assert(st.paused && st.open && st.chips === 8, 'Tab pauses and opens the arsenal; the bar has seven techniques and the ultimate: ' + JSON.stringify(st));
+  assert(st.paused && st.open && st.chips === 7, 'Tab pauses and opens the arsenal; the bar has six techniques and the ultimate: ' + JSON.stringify(st));
   await p.keyboard.press('Tab');
   await p.keyboard.press('Escape');
   assert(await p.evaluate(() => !__game.S.paused && document.getElementById('arsenal').hidden), 'and back into the fight');

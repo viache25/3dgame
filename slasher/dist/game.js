@@ -2277,6 +2277,8 @@ const SFX = (function () {
     if (S.real < P.nextSlash || P.lunge) { P.queue = [ax, ay, bx, by, S.real, kind, to]; return false; }
     const job = jobFor(ax, ay, bx, by, kind);
     if (!job) return false;
+    { const mx = job.M.x - P.x, mz = job.M.z - P.z, md = Math.hypot(mx, mz);
+      if (!kind && md > P.reach + 1.2 && !enemies.some((e) => !e.dead && Math.hypot(e.x - P.x, e.z - P.z) < P.reach + 0.6 + 0.8 * e.scale)) { let lean = Math.atan2(-(by - ay), bx - ax); if (lean > Math.PI / 2) lean -= Math.PI; else if (lean < -Math.PI / 2) lean += Math.PI; if (!throwWave(mx / md, mz / md, clamp(lean, -1.25, 1.25))) return false; INK.push({ ax, ay, bx, by, t: 0 }); return true; } }
     P.queue = null;
     P.nextSlash = S.real + (P.over ? 0.05 : S.focusOn ? 0.06 : 0.12) + (job.kind === 2 ? 0.2 : 0);
     const M = job.M, dx = M.x - P.x, dz = M.z - P.z, dist = Math.hypot(dx, dz);
@@ -2390,17 +2392,34 @@ const SFX = (function () {
     SFX.swing();
     if (made) scored(made, killed);
   }
+  // A blow at what the blade cannot reach is thrown instead: a crescent of fire leaves the blade and flies that way, cutting what it meets.
+  // tilt: how far the crescent leans from flat, radians
+  function throwWave(dx, dz, tilt) {
+    if ((S.mode !== 'play' && !S.arsenal) || P.dead || S.paused || P.act || P.dash > 0 || S.real < P.nextSlash) return false;
+    P.yaw = Math.atan2(dx, dz); P.queue = null; P.nextSlash = S.real + (P.over ? 0.16 : 0.3); P.stance = 1; P.front = 1; P.fireK = 1.4;
+    const n = new T.Vector3(dz * Math.sin(tilt), Math.cos(tilt), -dx * Math.sin(tilt)), f = new T.Vector3(dx, 0, dz), sd = new T.Vector3().crossVectors(n, f), pv = new T.Vector3(P.x, 1.25, P.z);
+    P.sw = { t: 0, T: 0.12, pv, f, s: sd, a0: -1.8, a1: 1.3, turn: 1, heavy: false };
+    crescent(pv, f, sd, -1.8, 1.3, 0.45, P.reach * 1.05, 0.12, { gain: 1.25 });
+    const big = P.over ? 1.5 : 1, w = { x: P.x + dx * 0.9, z: P.z + dz * 0.9, y: 1.2, ax: dx, az: dz, d: 0, max: 12 * big, speed: 27, half: 1.4 * big, top: 3.4, kills: S.kills, flames: 3, tail: 0, trail: null, burn: 1.1 * big };
+    w.jobs = [{ n, d: n.x * w.x + n.y * 1.2 + n.z * w.z, u: f }];
+    w.trail = crescent({ x: w.x, y: 1.2, z: w.z }, f, sd, -1.05, 1.05, 0.7 * big, 1.8 * big, 0.05, { hold: 9, fade: 0.22, gain: 1.4, flame: Math.max(style.flame, 0.6), follow: () => [w.x - w.ax * 1.4 * big, 1.2, w.z - w.az * 1.4 * big] });
+    waves.push(w);
+    FLARES.add(P.x + dx * 1.5, 1.3, P.z + dz * 1.5, style.trailA, 4, 0.3, 11);
+    SFX.swing(true); S.shake = Math.max(S.shake, 0.2); S.kick = Math.max(S.kick, 0.3);
+    return true;
+  }
   function tapSlash(x, y) {
     // which way: toward the cursor. Where: on the nearest synth within reach that way, or else a pace and a half in front of him
     camera.updateMatrixWorld(); dirAt(x, y, d0);
-    let dx = Math.sin(P.yaw), dz = Math.cos(P.yaw);
-    if (d0.y < -0.02) { const t = -camera.position.y / d0.y, gx = camera.position.x + d0.x * t - P.x, gz = camera.position.z + d0.z * t - P.z, l = Math.hypot(gx, gz); if (l > 0.3) { dx = gx / l; dz = gz / l; } }
+    let dx = Math.sin(P.yaw), dz = Math.cos(P.yaw), away = 0, near = false;
+    if (d0.y < -0.02) { const t = -camera.position.y / d0.y, gx = camera.position.x + d0.x * t - P.x, gz = camera.position.z + d0.z * t - P.z, l = Math.hypot(gx, gz); if (l > 0.3) { dx = gx / l; dz = gz / l; away = l; } }
     let tx = P.x + dx * 1.7, ty = 1.05, tz = P.z + dz * 1.7, best = P.reach + 0.6;
     for (const e of enemies) {
       if (e.dead) continue;
       const ex = e.x - P.x, ez = e.z - P.z, d = Math.hypot(ex, ez);
-      if (d < best && (d < 0.8 || (ex * dx + ez * dz) / d > 0.4)) { best = d; tx = e.x; ty = Math.min(1.7, 1.05 * e.scale); tz = e.z; }
+      if (d < best && (d < 0.8 || (ex * dx + ez * dz) / d > 0.4)) { best = d; tx = e.x; ty = Math.min(1.7, 1.05 * e.scale); tz = e.z; near = true; }
     }
+    if (!near && away > P.reach + 0.5) return throwWave(dx, dz, P.flip++ % 2 ? 0.45 : -0.45); // nobody within reach that way, and the cursor is far: the blow is thrown
     pj.set(tx, ty, tz).project(camera);
     const cx = (pj.x * 0.5 + 0.5) * vw, cy = (0.5 - pj.y * 0.5) * vh;
     if (S.real - P.comboAt > 1.1) P.combo = 0;
@@ -2413,11 +2432,10 @@ const SFX = (function () {
   // ---- techniques: two are worn at a time, chosen in the arsenal
   const ABIL = {
     storm: { name: 'Тысяча срезов', short: 'Срезы', text: 'Исчезаешь и появляешься там, где курсор, хоть через пол-арены: всё вокруг той точки изрублено раньше, чем успело упасть', cd: 14 },
-    wave: { name: 'Полумесяц', short: 'Месяц', text: 'Срез срывается с клинка и летит вперёд, разрезая всё на пути', cd: 6 },
     spin: { name: 'Вихрь', short: 'Вихрь', text: 'Огненный смерч: пять оборотов, врагов тянет под клинок, срезы идут на всех высотах, в конце удар в землю. Во время вихря можно бежать', cd: 3.5 },
     iai: { name: 'Удар сквозь', short: 'Сквозь', text: 'Проносишься насквозь. Всё распадается, когда клинок входит в ножны', cd: 9 },
     guard: { name: 'Отражение', short: 'Щит', text: 'Огненное колесо перед тобой: удары отбиты, выстрелы летят обратно в стрелка, а всё, что подошло ближе трёх метров, изрублено', cd: 7 },
-    fan: { name: 'Веер дисков', short: 'Веер', text: 'Три диска света расходятся веером и режут всё на пути', cd: 5 },
+    fan: { name: 'Веер дисков', short: 'Веер', text: 'Пять дисков огня расходятся веером, сами доворачивают на ближайших врагов и режут всё на пути', cd: 5 },
     leap: { name: 'Удар с неба', short: 'Прыжок', text: 'Прыжок к цели и удар сверху: звезда срезов во все стороны', cd: 8 },
   };
   const COOL = false; // cooldowns are switched off for now: a technique is ready again as soon as the last one is over. true brings them back
@@ -2472,12 +2490,6 @@ const SFX = (function () {
       if (!a.c) a.c = [cx, 1.1, cz];
       a.slow = 0.04; a.cuts = 12; a.next = 0.13;
       SFX.focus(true);
-    } else if (id === 'wave') {
-      const tilt = P.flip++ % 2 ? 0.5 : -0.5, n = new T.Vector3(az * Math.sin(tilt), Math.cos(tilt), -ax * Math.sin(tilt)), f = new T.Vector3(ax, 0, az), s = new T.Vector3().crossVectors(n, f), pv = new T.Vector3(P.x, 1.25, P.z);
-      a.n = n; a.f = f; a.s = s;
-      P.sw = { t: 0, T: 0.13, pv, f, s, a0: -1.9, a1: 1.3, turn: 1, heavy: false };
-      crescent(pv, f, s, -1.9, 1.3, 0.45, P.reach * 1.1, 0.13, { gain: 1.3 });
-      SFX.swing();
     } else if (id === 'spin') {
       a.pose = 'spin'; a.spin = 0; a.free = true; a.move = 0.85;
       FLARES.add(P.x, 1.3, P.z, style.trailA, 8, 1.1, 15, P);
@@ -2501,12 +2513,12 @@ const SFX = (function () {
       const pv = new T.Vector3(P.x, 1.2, P.z), f = new T.Vector3(ax, 0, az), up = new T.Vector3(0, 1, 0), sd = new T.Vector3(az, 0, -ax);
       P.sw = { t: 0, T: 0.1, pv, f, s: sd, a0: -1.4, a1: 1.4, turn: 1, heavy: false };
       crescent(pv, f, sd, -1.4, 1.4, 0.4, 1.6, 0.1);
-      [-0.3, 0, 0.3].forEach((off, i) => { // three discs, each on edge and each leaning its own way
-        const c = Math.cos(off), sn = Math.sin(off), dx = ax * c - az * sn, dz = az * c + ax * sn, lean = (i - 1) * 0.45 + 0.12;
+      [-0.44, -0.22, 0, 0.22, 0.44].forEach((off, i) => { // five discs, each on edge and each leaning its own way
+        const c = Math.cos(off), sn = Math.sin(off), dx = ax * c - az * sn, dz = az * c + ax * sn, lean = (i - 2) * 0.3 + 0.1;
         const n = new T.Vector3(dz * Math.cos(lean), Math.sin(lean), -dx * Math.cos(lean)), fd = new T.Vector3(dx, 0, dz), sx = new T.Vector3().crossVectors(n, fd);
-        const w = { x: P.x + dx * 0.9, z: P.z + dz * 0.9, y: 1.1, ax: dx, az: dz, d: 0, max: 13, speed: 25, half: 0.75, top: 3.2, kills: S.kills, flames: 1, tail: 0.07, trail: null, burn: 0.7 };
+        const w = { x: P.x + dx * 0.9, z: P.z + dz * 0.9, y: 1.1, ax: dx, az: dz, d: 0, max: 16, speed: 26, half: 1.15, top: 3.4, kills: S.kills, flames: 1, tail: 0.09, trail: null, burn: 0.8, home: 3.2, lean };
         w.jobs = [{ n, d: n.x * w.x + n.y * 1.1 + n.z * w.z, u: fd }];
-        w.trail = crescent({ x: w.x, y: 1.1, z: w.z }, fd, sx, -Math.PI, Math.PI, 0.1, 0.62, 0.04, { hold: 9, fade: 0.2, gain: 1.6, follow: () => [w.x, w.y, w.z] });
+        w.trail = crescent({ x: w.x, y: 1.1, z: w.z }, fd, sx, -Math.PI, Math.PI, 0.12, 0.95, 0.04, { hold: 9, fade: 0.2, gain: 1.6, follow: () => [w.x, w.y, w.z] });
         waves.push(w);
       });
       SFX.swing(); SFX.shot();
@@ -2557,17 +2569,6 @@ const SFX = (function () {
         if (!a.clicked && a.t >= a.from + 0.45) { a.clicked = true; a.slow = null; SFX.sheath(); SFX.erupt(); S.flash = 1; S.kick = 1; S.shake = Math.max(S.shake, 0.7); blaze(c[0], 0.6, c[2], 14, 1.3, 11); fireRing(c[0], c[2], 2.3, 12, 1.4, 0.8, 0.03); fire(c[0], 0.03, c[2], 3.6, 0.7, { gain: 1.3, keep: true }); if (a.made) scored(a.made, a.kills); }
         if (a.t >= a.from + 0.7) endAct();
       }
-    } else if (a.id === 'wave') {
-      if (!a.fired && a.t >= 0.11) {
-        a.fired = true;
-        const w = { x: P.x + a.ax, z: P.z + a.az, y: 1.2, ax: a.ax, az: a.az, d: 0, max: 16, speed: 28, half: 2.0, top: 3.6, kills: S.kills, flames: 4, tail: 0, trail: null, burn: 1.5 };
-        w.jobs = [{ n: a.n, d: a.n.x * w.x + a.n.y * 1.2 + a.n.z * w.z, u: a.f }];
-        w.trail = crescent({ x: w.x, y: 1.2, z: w.z }, a.f, a.s, -1.05, 1.05, 1.0, 2.5, 0.05, { hold: 9, fade: 0.25, gain: 1.5, flame: Math.max(style.flame, 0.6), follow: () => [w.x - w.ax * 1.9, 1.2, w.z - w.az * 1.9] });
-        waves.push(w);
-        blaze(P.x + a.ax * 1.2, 1.0, P.z + a.az * 1.2, 6, 0.9, 6);
-        SFX.wave(); S.shake = Math.max(S.shake, 0.3); S.kick = Math.max(S.kick, 0.6);
-      }
-      if (a.t >= 0.34) endAct();
     } else if (a.id === 'spin') {
       const k = Math.min(1, a.t / 0.84), px = P.x, pz = P.z;
       const ring = (h, R, tilt) => { // one cut all the way round at this height; what it frees is flung round and outward
@@ -2705,6 +2706,16 @@ const SFX = (function () {
     for (let i = waves.length - 1; i >= 0; i--) {
       const w = waves[i], len = w.speed * dt, x0 = w.x, z0 = w.z;
       if (len <= 0) continue;
+      if (w.home) { // a disc bends toward the nearest synth in front of it, a little at a time
+        let best = null, bd = 9;
+        for (const e of enemies) { if (e.dead) continue; const ex = e.x - w.x, ez = e.z - w.z, d = Math.hypot(ex, ez); if (d < bd && d > 0.3 && (ex * w.ax + ez * w.az) / d > 0.7) { bd = d; best = e; } }
+        if (best) {
+          const turn = clamp(Math.atan2(w.az * (best.x - w.x) - w.ax * (best.z - w.z), w.ax * (best.x - w.x) + w.az * (best.z - w.z)), -w.home * dt, w.home * dt), c = Math.cos(turn), sn = Math.sin(turn), nx = w.ax * c + w.az * sn, nz = w.az * c - w.ax * sn;
+          w.ax = nx; w.az = nz;
+          const n = new T.Vector3(nz * Math.cos(w.lean), Math.sin(w.lean), -nx * Math.cos(w.lean));
+          w.jobs[0] = { n, d: n.x * w.x + n.y * 1.1 + n.z * w.z, u: new T.Vector3(nx, 0, nz) };
+        }
+      }
       w.x += w.ax * len; w.z += w.az * len; w.d += len;
       const want = strip(x0, z0, w.ax, w.az, len, w.half, w.top), mx = (x0 + w.x) / 2, mz = (z0 + w.z) / 2;
       let made = 0;
@@ -3036,9 +3047,9 @@ const SFX = (function () {
 
   // ---- the arsenal: the style of the blade and the two techniques worn, kept between visits
   // The seven techniques, in the order of their keys: the whirl first, under Q; then the quick ones; the long ones further along.
-  const ORDER = ['spin', 'wave', 'fan', 'iai', 'storm', 'leap', 'guard'];
+  const ORDER = ['spin', 'guard', 'fan', 'iai', 'storm', 'leap'];
   // their keys: around the left hand and the numbers above it; R, in the middle of them, is the ultimate
-  const KEYS = ['KeyQ', 'KeyE', 'KeyT', 'Digit1', 'Digit2', 'Digit3', 'Digit4'], KEY_NAMES = ['Q', 'E', 'T', '1', '2', '3', '4'];
+  const KEYS = ['KeyQ', 'KeyE', 'KeyT', 'Digit1', 'Digit2', 'Digit3'], KEY_NAMES = ['Q', 'E', 'T', '1', '2', '3'];
   const LOAD = { style: 'ember', ult: 'over' };
   try {
     const j = JSON.parse(localStorage.getItem('blade-clay-loadout') || 'null');
@@ -3072,7 +3083,7 @@ const SFX = (function () {
     fill($('optStyle'), STYLES, LOAD.style, (id) => { LOAD.style = id; applyLoad(true); demo('style'); }, 'aboutStyle', '');
     fill($('optUlt'), Object.keys(ULTS).map((id) => Object.assign({ id }, ULTS[id])), LOAD.ult, (id) => { LOAD.ult = id; applyLoad(true); demo('ult'); }, 'aboutUlt', '');
     // the techniques are not chosen, they are all there: this shelf is for reading about them and trying them
-    fill($('optTech'), ORDER.map((id, i) => Object.assign({ id, key: KEY_NAMES[i] }, ABIL[id])), null, (id) => demo(ORDER.indexOf(id)), 'aboutTech', 'Все семь всегда с тобой. Наведи, чтобы прочитать; нажми, чтобы увидеть на синтете.');
+    fill($('optTech'), ORDER.map((id, i) => Object.assign({ id, key: KEY_NAMES[i] }, ABIL[id])), null, (id) => demo(ORDER.indexOf(id)), 'aboutTech', 'Все шесть всегда с тобой. Наведи, чтобы прочитать; нажми, чтобы увидеть на синтете.');
   }
   // the bar at the bottom: a chip for each technique with its key, and one for the ultimate
   function buildBar() {
