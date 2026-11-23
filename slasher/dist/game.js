@@ -3364,6 +3364,7 @@ const SFX = (function () {
     if (bannerT && S.real > bannerT) { $('banner').classList.remove('on'); bannerT = 0; }
     // a new lesson is offered between waves, never in the middle of a fight
     if (S.pending > 0 && S.mode === 'play' && !P.dead && S.slowT <= 0 && S.stop <= 0 && !S.queue.length && !enemies.some((e) => !e.dead)) openChoice();
+    if (!COOL && S.mode === 'play') S.ult = 1; // with cooldowns off the ultimate is always charged too
     updateHud();
     drawInk(dtR);
   }
