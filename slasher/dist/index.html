@@ -71,21 +71,24 @@ body.touch .pads { display: flex; }
 .row { display: flex; flex-wrap: wrap; gap: 12px; }
 
 /* the two techniques: chips at the bottom with a key each, round pads under the thumb on a phone; a shade drains off as one comes ready */
-.abils { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 10px; padding-block: 0 14px; pointer-events: none; }
-.abil { pointer-events: auto; position: relative; overflow: hidden; display: flex; align-items: center; gap: 9px; min-width: 150px; padding: 9px 12px; font: 800 12px var(--ui); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); background: var(--plate); border: 1px solid var(--style); cursor: pointer; touch-action: none; }
+.abils { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 6px; padding-block: 0 12px; pointer-events: none; }
+.abil { pointer-events: auto; position: relative; overflow: hidden; display: grid; justify-items: center; gap: 4px; width: 84px; padding: 6px 4px 7px; font: 800 10.5px var(--ui); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); background: var(--plate); border: 1px solid var(--style); cursor: pointer; touch-action: none; }
+.abil.ult { width: 96px; margin-left: 10px; }
 .abil kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 2px 7px; }
 .abil i { position: absolute; inset: 0; background: rgba(23, 15, 32, 0.82); transform-origin: 50% 100%; transform: scaleY(0); pointer-events: none; }
 .abil.wait { color: var(--dim); border-color: var(--line); }
 .abil.ult.ready { box-shadow: 0 0 18px var(--style), inset 0 0 0 1px var(--style); }
 .abil.ult i { background: rgba(23, 15, 32, 0.9); }
 body.touch .abils { left: auto; bottom: calc(108px + env(safe-area-inset-bottom, 0px)); gap: 9px; padding-block: 0; }
-body.touch .abil { width: 66px; height: 66px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; border-width: 2px; font-size: 11px; letter-spacing: 0.03em; }
+body.touch .abils { gap: 4px; }
+body.touch .abil, body.touch .abil.ult { width: 42px; margin: 0; padding: 4px 1px; font-size: 7.5px; letter-spacing: 0; }
 
 /* the arsenal: three shelves of choices; what is chosen carries the colour of the blade */
 #arsenal { justify-content: flex-start; gap: 6px; padding-block: 16px; }
 #arsenal h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(26px, 3.6vw, 40px); line-height: 1; color: var(--ink); }
 #arsenal h3 { margin: 2px 0 0; font: 800 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
-#arsenal h3 kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 1px 6px; }
+#arsenal h3 kbd, .opt kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 1px 6px; }
+.opt kbd { justify-self: start; }
 #arsenal > .opts { width: 100%; max-width: min(540px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 #arsenal > #optStyle { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 #arsenal .opt span { display: none; }
@@ -137,13 +140,9 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     </div>
   </div>
   <div id="banner" class="gutter"></div>
-  <p id="hint" class="gutter gone"><span class="for-keys">Проведи мышью по врагу: разрез пройдёт по этой линии. WASD — бег, пробел — рывок, Shift — замедлить время.</span><span class="for-touch">Проведи пальцем по врагу: разрез пройдёт по этой линии. Левый палец ведёт героя.</span></p>
+  <p id="hint" class="gutter gone"><span class="for-keys">Зажми левую кнопку на враге, чтобы рубить. Проведи с зажатой, и разрез пройдёт по этой линии. Приёмы на цифрах 1–7.</span><span class="for-touch">Проведи пальцем по врагу: разрез пройдёт по этой линии. Левый палец ведёт героя.</span></p>
   <div id="stick" hidden><div id="knob"></div></div>
-  <div class="abils gutter" id="abils" hidden>
-    <button class="abil" id="abil0" type="button"><kbd class="for-keys">Q</kbd><span id="abilName0"></span><i id="abilCd0"></i></button>
-    <button class="abil" id="abil1" type="button"><kbd class="for-keys">E</kbd><span id="abilName1"></span><i id="abilCd1"></i></button>
-    <button class="abil ult" id="abil2" type="button"><kbd class="for-keys">R</kbd><span id="abilName2"></span><i id="abilCd2"></i></button>
-  </div>
+  <div class="abils gutter" id="abils" hidden></div>
   <div class="pads gutter">
     <button class="pad" id="btnFocus" type="button" aria-pressed="false">Фокус</button>
     <button class="pad" id="btnDash" type="button">Рывок</button>
@@ -152,11 +151,12 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <h1>Клинок <em>и&nbsp;неон</em></h1>
     <p>Ночной город, дождь. С крыш падают синтеты с клинками. Твой клинок режет ровно там, где ты провёл линию.</p>
     <ul class="keys for-keys">
-      <li><b>Провести мышью</b> — разрез по этой линии</li>
-      <li><b>Щелчок</b> — быстрый удар по ближнему</li>
+      <li><b>Зажать левую кнопку</b> — рубить то, что под курсором</li>
+      <li><b>Провести с зажатой</b> — разрез ровно по этой линии</li>
       <li><b>WASD</b> — бег, <b>пробел</b> — рывок</li>
-      <li><b>Shift</b> или правая кнопка — замедлить время и рубить на куски</li>
-      <li><b>Q</b> и <b>E</b> — приёмы, бьют туда, где мышь; <b>R</b> — ульта, копится за сражённых</li>
+      <li><b>Shift</b> или правая кнопка — замедлить время</li>
+      <li><b>1–7</b> — приёмы, <b>R</b> — ульта; бьют туда, где курсор</li>
+      <li><b>Колесо</b> — ближе и дальше, <b>F</b> — весь экран, <b>Tab</b> — арсенал</li>
     </ul>
     <ul class="keys for-touch">
       <li><b>Провести пальцем</b> — разрез по этой линии</li>
@@ -182,20 +182,26 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <h3>Стиль клинка</h3>
     <div class="opts" id="optStyle"></div>
     <p class="about" id="aboutStyle"></p>
-    <h3>Приём <kbd class="for-keys">Q</kbd><span class="for-touch">первый</span></h3>
-    <div class="opts" id="optSlot0"></div>
-    <p class="about" id="aboutSlot0"></p>
-    <h3>Приём <kbd class="for-keys">E</kbd><span class="for-touch">второй</span></h3>
-    <div class="opts" id="optSlot1"></div>
-    <p class="about" id="aboutSlot1"></p>
     <h3>Ульта <kbd class="for-keys">R</kbd></h3>
     <div class="opts" id="optUlt"></div>
     <p class="about" id="aboutUlt"></p>
+    <h3>Приёмы на цифрах</h3>
+    <div class="opts" id="optTech"></div>
+    <p class="about" id="aboutTech"></p>
     <button class="go" id="arsenalDone" type="button">Готово</button>
   </div>
   <div id="pause" class="sheet gutter" hidden>
     <h1>Пауза</h1>
-    <div class="row"><button class="go" id="resume" type="button">Дальше</button><button class="go quiet" id="pauseArsenal" type="button">Арсенал</button></div>
+    <div class="row"><button class="go" id="resume" type="button">Дальше</button><button class="go quiet" id="pauseArsenal" type="button">Арсенал</button><button class="go quiet" id="fullBtn" type="button">Весь экран</button></div>
+    <ul class="keys">
+      <li><b>Зажать левую кнопку</b> — рубить то, что под курсором</li>
+      <li><b>Провести с зажатой</b> — разрез ровно по этой линии</li>
+      <li><b>WASD</b> — бег, <b>пробел</b> — рывок</li>
+      <li><b>Shift</b> или правая кнопка — замедлить время</li>
+      <li><b>1–7</b> — приёмы, <b>R</b> — ульта; бьют туда, где курсор</li>
+      <li><b>Колесо</b> — ближе и дальше, <b>F</b> — весь экран, <b>Tab</b> — арсенал</li>
+    </ul>
+
   </div>
   <div id="fail" class="gutter" hidden>Этому браузеру не хватает WebGL. Откройте страницу в свежем Chrome, Safari или Firefox.</div>
 </div>

@@ -1113,11 +1113,15 @@ const SFX = (function () {
     { id: 'frost', name: 'Иней', text: 'Холодный блеск, срезы искрят голубым', css: '#7fd8ff', hotA: [0.7, 0.95, 1.0], hotB: [0.08, 0.4, 1.0], trailA: [1.1, 2.0, 2.6], trailB: [0.1, 0.5, 1.4], spark: [1.2, 2.0, 2.6], ghost: [0.3, 0.7, 1.0], flame: 0 },
     { id: 'blood', name: 'Алая луна', text: 'Тяжёлый красный след цвета заката', css: '#ff3b4a', hotA: [1.0, 0.16, 0.12], hotB: [0.7, 0.0, 0.06], trailA: [2.6, 0.3, 0.3], trailB: [1.0, 0.02, 0.08], spark: [2.6, 0.35, 0.3], ghost: [1.0, 0.1, 0.12], flame: 0.4 },
   ];
+  const reticle = new T.Mesh(new T.RingGeometry(0.36, 0.43, 44), new T.MeshBasicMaterial({ color: new T.Color(1, 1, 1), transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+  reticle.rotation.x = -Math.PI / 2; reticle.renderOrder = 3; reticle.visible = false;
+  scene.add(reticle);
   let style = STYLES[0];
   function setStyle(id) {
     style = STYLES.find((s) => s.id === id) || STYLES[0];
     SHARED.uHotA.value.fromArray(style.hotA); SHARED.uHotB.value.fromArray(style.hotB);
     document.documentElement.style.setProperty('--style', style.css);
+    reticle.material.color.setRGB(style.trailA[0] * 0.7, style.trailA[1] * 0.7, style.trailA[2] * 0.7);
   }
   // a crescent in the colours of the blade
   function crescent(p, f, s, a0, a1, r0, r1, T0, o) {
@@ -1132,7 +1136,7 @@ const SFX = (function () {
   // ---- state
   const STANDOFF = 1.35, ARENA = 38, TOP = 3.0, MAX_PARTS = TOUCH ? 150 : 240, HARD_PARTS = TOUCH ? 260 : 420; // TOP: how high the blade reaches
   const CUT = { minPiece: 2.5e-4, minHalf: 2e-5, tol: 0.012 };
-  const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false, arsenal: false, flash: 0, demoQ: null, dummyAt: 0, kick: 0, shx: 1, shz: 0, ult: 0 };
+  const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false, arsenal: false, flash: 0, demoQ: null, dummyAt: 0, kick: 0, shx: 1, shz: 0, ult: 0, zoom: 1 };
   const P = { x: 0, z: 0, yaw: 0, hp: 100, maxHp: 100, focus: 1, speed: 0, phase: 0, dash: 0, dashCd: 0, dx: 0, dz: 1, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, nextSlash: 0, queue: null, flip: 0, dead: false, rig: null, vx: 0, vz: 0, y: 0, over: 0, ultId: 'over', up: {}, cd: {}, slots: [], act: null, stance: 0, front: 1, combo: 0, comboAt: 0, reach: 2.9, lungeMax: 3.8, drain: 0.24, run: 6.3, dashGap: 0.6, leech: 0, slowKill: 0.3 };
   const bodies = [], enemies = [], solids = [];
   const keys = {};
@@ -2193,7 +2197,7 @@ const SFX = (function () {
   const local = (ev) => { const r = canvas.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
   stage.addEventListener('contextmenu', (ev) => ev.preventDefault());
   // one stroke: press, move, lift. A sharp turn inside a long stroke ends one cut and starts the next, so scribbling chops.
-  function press(id, x, y) { if (!swipe) swipe = { id, ax: x, ay: y, x, y, px: x, py: y, at: S.real, n: 0 }; }
+  function press(id, x, y) { if (!swipe) swipe = { id, ax: x, ay: y, x, y, px: x, py: y, at: S.real, n: 0, nextTap: 0 }; }
   function cutStroke() { if (slash(swipe.ax, swipe.ay, swipe.x, swipe.y)) swipe.n++; swipe.ax = swipe.px = swipe.x; swipe.ay = swipe.py = swipe.y; }
   function move(id, x, y) {
     if (!swipe || swipe.id !== id) return;
@@ -2257,9 +2261,11 @@ const SFX = (function () {
     if (ev.repeat) return;
     keys[ev.code] = true;
     if (S.choosing) { const i = ['Digit1', 'Digit2', 'Digit3', 'Numpad1', 'Numpad2', 'Numpad3'].indexOf(ev.code); if (i >= 0) choose(i % 3); return; }
-    if (ev.code === 'KeyQ') useAbility(0);
-    if (ev.code === 'KeyE') useAbility(1);
+    const num = Math.max(['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7'].indexOf(ev.code), ['Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7'].indexOf(ev.code));
+    if (num >= 0) useAbility(num);
     if (ev.code === 'KeyR') useUlt();
+    if (ev.code === 'KeyF') fullScreen();
+    if (ev.code === 'Tab') { ev.preventDefault(); if (!$('arsenal').hidden) arsenal(false); else if (S.mode === 'title') arsenal(true); else if (S.mode === 'play' && !P.dead && !S.choosing) { pause(true); arsenal(true); } }
     if (ev.code === 'Space') { ev.preventDefault(); if (S.mode === 'play') dash(); else if (S.mode === 'title') begin(); else if (!$('dead').hidden) begin(); }
     if (ev.code === 'Enter' && (S.mode === 'title' || !$('dead').hidden)) begin();
     if (ev.code === 'Escape' && !$('arsenal').hidden) { arsenal(false); return; }
@@ -2274,17 +2280,28 @@ const SFX = (function () {
   $('resume').addEventListener('click', () => pause(false));
   $('btnDash').addEventListener('pointerdown', (ev) => { ev.preventDefault(); dash(); });
   $('btnFocus').addEventListener('pointerdown', (ev) => { ev.preventDefault(); focusBtn = !focusBtn; });
-  for (const k of [0, 1]) $('abil' + k).addEventListener('pointerdown', (ev) => { ev.preventDefault(); useAbility(k); });
-  $('abil2').addEventListener('pointerdown', (ev) => { ev.preventDefault(); useUlt(); });
   $('openArsenal').addEventListener('click', () => arsenal(true));
   $('pauseArsenal').addEventListener('click', () => arsenal(true));
   $('arsenalDone').addEventListener('click', () => arsenal(false));
+  $('fullBtn').addEventListener('click', fullScreen);
   $('sound').addEventListener('click', () => { const off = $('sound').getAttribute('aria-pressed') !== 'true'; $('sound').setAttribute('aria-pressed', String(off)); $('sound').textContent = off ? 'Звук выкл' : 'Звук вкл'; SFX.mute(off); });
+  function fullScreen() { // a browser may refuse; then nothing happens
+    try { if (document.fullscreenElement) document.exitFullscreen(); else { const r = document.documentElement.requestFullscreen(); if (r && r.catch) r.catch(() => {}); } } catch (e) { /* not allowed here */ }
+  }
+  // where the mouse points on the ground, or null
+  function mouseGround() {
+    if (!mouse.seen || TOUCH) return null;
+    camera.updateMatrixWorld(); dirAt(mouse.x, mouse.y, d0);
+    if (d0.y > -0.02) return null;
+    const t = -camera.position.y / d0.y;
+    return [camera.position.x + d0.x * t, camera.position.z + d0.z * t];
+  }
+  stage.addEventListener('wheel', (ev) => { ev.preventDefault(); S.zoom = clamp(S.zoom * (ev.deltaY > 0 ? 1.08 : 0.925), 0.68, 1.45); }, { passive: false });
   function pause(on) { S.paused = on; $('pause').hidden = !on; swipe = null; stick = null; showStick(); }
   function dash() {
     if (P.dead || P.dashCd > 0 || S.paused || P.act) return;
     let dx = P.dx, dz = P.dz;
-    if (!(P.speed > 0.5)) { dx = Math.sin(P.yaw); dz = Math.cos(P.yaw); }
+    if (!(P.speed > 0.5)) { const at = mouseGround(), l = at ? Math.hypot(at[0] - P.x, at[1] - P.z) : 0; if (l > 0.5) { dx = (at[0] - P.x) / l; dz = (at[1] - P.z) / l; } else { dx = Math.sin(P.yaw); dz = Math.cos(P.yaw); } }
     P.dash = 0.16; P.dashCd = P.dashGap; P.ddx = dx; P.ddz = dz; P.sx0 = P.x; P.sz0 = P.z; P.invul = Math.max(P.invul, 0.26);
     SFX.dash();
     for (let i = 0; i < 6; i++) DUST.add(P.x, 0.15, P.z, -dx * 2 + (rnd() - 0.5) * 2, 0.5 + rnd(), -dz * 2 + (rnd() - 0.5) * 2, 0.3, 0.34, 0.52, 0.2, 0.36, 0.6, 2, -0.2);
@@ -2302,39 +2319,56 @@ const SFX = (function () {
   }
 
   // ---- the arsenal: the style of the blade and the two techniques worn, kept between visits
-  const LOAD = { style: 'ember', slots: ['storm', 'wave'], ult: 'over' };
+  // The seven techniques sit on the number keys in this order: the quick ones under the first fingers, the long ones further along.
+  const ORDER = ['wave', 'fan', 'spin', 'iai', 'leap', 'guard', 'storm'];
+  const LOAD = { style: 'ember', ult: 'over' };
   try {
     const j = JSON.parse(localStorage.getItem('blade-clay-loadout') || 'null');
     if (j && STYLES.some((s) => s.id === j.style)) LOAD.style = j.style;
-    if (j && Array.isArray(j.slots) && j.slots.length === 2 && j.slots.every((x) => ABIL[x]) && j.slots[0] !== j.slots[1]) LOAD.slots = j.slots;
     if (j && ULTS[j.ult]) LOAD.ult = j.ult;
   } catch (e) { /* storage may be closed */ }
   function applyLoad(save) {
-    setStyle(LOAD.style); P.slots = LOAD.slots.slice(); P.ultId = LOAD.ult;
+    setStyle(LOAD.style); P.slots = ORDER.slice(); P.ultId = LOAD.ult;
     if (save) try { localStorage.setItem('blade-clay-loadout', JSON.stringify(LOAD)); } catch (e) { /* storage may be closed */ }
     drawArsenal(); hudKey = '';
   }
   function drawArsenal() {
-    const fill = (box, items, cur, pick, about) => {
+    const fill = (box, items, cur, pick, about, idle) => {
       box.textContent = '';
-      const say = (it) => { if (about) $(about).textContent = it.text + (it.cd ? '. Перезарядка ' + it.cd + ' с.' : '.'); };
+      const say = (it) => { $(about).textContent = it ? it.text + (it.cd ? '. Перезарядка ' + it.cd + ' с.' : '.') : idle; };
+      say(items.find((x) => x.id === cur));
       for (const it of items) {
-        if (it.id === cur) say(it);
-        const b = document.createElement('button'), nm = document.createElement('b'), tx = document.createElement('span');
-        b.type = 'button'; b.className = 'opt'; b.dataset.id = it.id; b.setAttribute('aria-pressed', String(it.id === cur));
+        const b = document.createElement('button'), nm = document.createElement('b');
+        b.type = 'button'; b.className = 'opt'; b.dataset.id = it.id;
+        if (cur !== null) b.setAttribute('aria-pressed', String(it.id === cur));
         if (it.css) { const sw = document.createElement('i'); sw.style.background = it.css; b.append(sw); }
-        nm.textContent = it.name; tx.textContent = it.text + (it.cd ? '. Перезарядка ' + it.cd + ' с' : '');
-        b.append(nm, tx);
+        if (it.key) { const k = document.createElement('kbd'); k.textContent = it.key; b.append(k); }
+        nm.textContent = it.name;
+        b.append(nm);
         b.addEventListener('click', () => pick(it.id));
         b.addEventListener('pointerenter', () => say(it));
         b.addEventListener('pointerleave', () => say(items.find((x) => x.id === cur)));
         box.append(b);
       }
     };
-    fill($('optStyle'), STYLES, LOAD.style, (id) => { LOAD.style = id; applyLoad(true); demo('style'); }, 'aboutStyle');
-    const abil = ABIL_IDS.map((id) => Object.assign({ id }, ABIL[id]));
-    for (const k of [0, 1]) fill($('optSlot' + k), abil, LOAD.slots[k], (id) => { if (LOAD.slots[1 - k] === id) LOAD.slots[1 - k] = LOAD.slots[k]; LOAD.slots[k] = id; applyLoad(true); demo(k); }, 'aboutSlot' + k);
-    fill($('optUlt'), Object.keys(ULTS).map((id) => Object.assign({ id }, ULTS[id])), LOAD.ult, (id) => { LOAD.ult = id; applyLoad(true); demo('ult'); }, 'aboutUlt');
+    fill($('optStyle'), STYLES, LOAD.style, (id) => { LOAD.style = id; applyLoad(true); demo('style'); }, 'aboutStyle', '');
+    fill($('optUlt'), Object.keys(ULTS).map((id) => Object.assign({ id }, ULTS[id])), LOAD.ult, (id) => { LOAD.ult = id; applyLoad(true); demo('ult'); }, 'aboutUlt', '');
+    // the techniques are not chosen, they are all there: this shelf is for reading about them and trying them
+    fill($('optTech'), ORDER.map((id, i) => Object.assign({ id, key: String(i + 1) }, ABIL[id])), null, (id) => demo(ORDER.indexOf(id)), 'aboutTech', 'Все семь всегда с тобой. Наведи, чтобы прочитать; нажми, чтобы увидеть на синтете.');
+  }
+  // the bar at the bottom: a chip for each technique with its key, and one for the ultimate
+  function buildBar() {
+    const box = $('abils');
+    box.textContent = '';
+    const chip = (i, key, ult) => {
+      const b = document.createElement('button'), k = document.createElement('kbd'), n = document.createElement('span'), sh = document.createElement('i');
+      b.type = 'button'; b.className = ult ? 'abil ult' : 'abil'; b.id = 'abil' + i; k.textContent = key; n.id = 'abilName' + i; sh.id = 'abilCd' + i;
+      b.append(k, n, sh);
+      b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (ult) useUlt(); else useAbility(i); });
+      box.append(b);
+    };
+    ORDER.forEach((id, i) => chip(i, String(i + 1), false));
+    chip('U', 'R', true);
   }
   // On the title screen the arsenal comes with a practice idol, and every choice is shown on it at once.
   function arsenal(on) {
@@ -2402,6 +2436,7 @@ const SFX = (function () {
       P.vx = lerp(P.vx, mx * sp, k); P.vz = lerp(P.vz, mz * sp, k);
       vx = P.vx; vz = P.vz;
       P.speed = Math.hypot(vx, vz);
+      if (ml <= 0.15 && !P.sw && !P.act && S.mode === 'play') { const at = mouseGround(); if (at && Math.hypot(at[0] - P.x, at[1] - P.z) > 0.8) { let da = Math.atan2(at[0] - P.x, at[1] - P.z) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 9)); } }
       if (ml > 0.15) { P.dx = mx / ml; P.dz = mz / ml; if (!P.sw) { let da = Math.atan2(mx, mz) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 16)); } }
     }
     P.kx *= Math.exp(-dt * 7); P.kz *= Math.exp(-dt * 7);
@@ -2448,7 +2483,7 @@ const SFX = (function () {
     camAt.lerp(v1, 1 - Math.exp(-dt * 10));
     S.kick = Math.max(0, S.kick - dt * 6);
     S.shake = Math.max(0, S.shake - dt * 2.4);
-    const sh = S.shake * S.shake * 0.5, wob = Math.sin(S.real * 78) * sh * 0.9, kd = dist * (1 - 0.06 * S.kick);
+    const sh = S.shake * S.shake * 0.5, wob = Math.sin(S.real * 78) * sh * 0.9, kd = dist * (1 - 0.06 * S.kick) * S.zoom;
     camera.position.set(camAt.x + (rnd() - 0.5) * sh * 0.6 + S.shx * wob, camAt.y + Math.sin(pitch) * kd + (rnd() - 0.5) * sh * 0.6, camAt.z + Math.cos(pitch) * kd + S.shz * wob);
     camera.lookAt(camAt.x, camAt.y + 0.3 * f, camAt.z);
     const fov = (tall ? 54 : 40) - 2.2 * S.kick;
@@ -2458,15 +2493,15 @@ const SFX = (function () {
   const hud = { hp: $('hp'), focus: $('focus'), xp: $('xp'), level: $('level'), wave: $('wave'), kills: $('kills'), parts: $('parts') };
   let hudKey = '';
   function updateHud() {
-    const key = [P.slots.join(), P.ultId, Math.round(S.ult * 50), !!P.over, Math.ceil(P.cd[P.slots[0]] * 10), Math.ceil(P.cd[P.slots[1]] * 10), Math.round(P.hp), P.maxHp, Math.round(P.focus * 50), S.xp, S.level, S.wave, S.kills, S.parts, S.focusOn, focusBtn].join();
+    const key = [P.ultId, Math.round(S.ult * 50), !!P.over, ORDER.map((id) => Math.ceil(P.cd[id] * 10)).join('.'), Math.round(P.hp), P.maxHp, Math.round(P.focus * 50), S.xp, S.level, S.wave, S.kills, S.parts, S.focusOn, focusBtn].join();
     if (key === hudKey) return;
     hudKey = key;
     hud.hp.style.transform = 'scaleX(' + clamp(P.hp / P.maxHp, 0, 1) + ')';
     hud.focus.style.transform = 'scaleX(' + clamp(P.focus, 0, 1) + ')';
     hud.xp.style.transform = 'scaleX(' + clamp(S.xp / S.need, 0, 1) + ')';
     hud.level.textContent = S.level; hud.wave.textContent = S.wave; hud.kills.textContent = S.kills; hud.parts.textContent = S.parts;
-    for (const k of [0, 1]) { const id = P.slots[k], cd = P.cd[id]; $('abilName' + k).textContent = TOUCH ? ABIL[id].short : ABIL[id].name; $('abilCd' + k).style.transform = 'scaleY(' + clamp(cd / ABIL[id].cd, 0, 1) + ')'; $('abil' + k).classList.toggle('wait', cd > 0); }
-    $('abilName2').textContent = ULTS[P.ultId][TOUCH ? 'short' : 'name']; $('abilCd2').style.transform = 'scaleY(' + (1 - clamp(S.ult, 0, 1)) + ')'; $('abil2').classList.toggle('wait', S.ult < 1); $('abil2').classList.toggle('ready', S.ult >= 1); document.body.classList.toggle('over', !!P.over);
+    for (let k = 0; k < ORDER.length; k++) { const id = ORDER[k], cd = P.cd[id]; $('abilName' + k).textContent = ABIL[id].short; $('abilCd' + k).style.transform = 'scaleY(' + clamp(cd / ABIL[id].cd, 0, 1) + ')'; $('abil' + k).classList.toggle('wait', cd > 0); }
+    $('abilNameU').textContent = ULTS[P.ultId].short; $('abilCdU').style.transform = 'scaleY(' + (1 - clamp(S.ult, 0, 1)) + ')'; $('abilU').classList.toggle('wait', S.ult < 1); $('abilU').classList.toggle('ready', S.ult >= 1); document.body.classList.toggle('over', !!P.over);
     document.body.classList.toggle('focus', S.focusOn);
     $('btnFocus').setAttribute('aria-pressed', String(focusBtn));
   }
@@ -2532,7 +2567,14 @@ const SFX = (function () {
     S.time += dt;
     SHARED.uTime.value = S.time;
     if (S.mode !== 'title' || S.arsenal) {
-      if (swipe && S.real - swipe.at > 0.1 && Math.hypot(swipe.x - swipe.ax, swipe.y - swipe.ay) > 36) cutStroke(); // a stroke that has stopped is a cut already
+      if (swipe) {
+        const len = Math.hypot(swipe.x - swipe.ax, swipe.y - swipe.ay), still = S.real - swipe.at;
+        if (still > 0.1 && len > 36) cutStroke(); // a stroke that has stopped is a cut already
+        else if (still > 0.07 && len <= 36 && S.real >= swipe.nextTap && !P.lunge && !P.act) { // held in one place: blow after blow at whatever is under the cursor
+          swipe.ax = swipe.px = swipe.x; swipe.ay = swipe.py = swipe.y;
+          tapSlash(swipe.x, swipe.y); swipe.n++; swipe.nextTap = S.real + 0.27;
+        }
+      }
       updateDemo();
       if (P.over) { // overloaded: light pours off him, and it ends on the clock
         if (S.real >= P.over || P.dead) { P.over = 0; applyUps(); }
@@ -2557,6 +2599,9 @@ const SFX = (function () {
     grade.uniforms.ab.value = CALM_MOTION ? 0.0015 : 0.0022 + S.shake * S.shake * 0.02 + S.flash * 0.012 + S.focusK * 0.003;
     grade.uniforms.uT.value = S.real % 10;
     W.step(dtR, camAt.x, camAt.z);
+    const at = S.mode === 'play' && !P.dead ? mouseGround() : null;
+    reticle.visible = !!at;
+    if (at) { reticle.position.set(at[0], 0.05, at[1]); reticle.scale.setScalar(1 + 0.08 * Math.sin(S.real * 6)); }
     if (bannerT && S.real > bannerT) { $('banner').classList.remove('on'); bannerT = 0; }
     // a new lesson is offered between waves, never in the middle of a fight
     if (S.pending > 0 && S.mode === 'play' && !P.dead && S.slowT <= 0 && S.stop <= 0 && !S.queue.length && !enemies.some((e) => !e.dead)) openChoice();
@@ -2565,9 +2610,10 @@ const SFX = (function () {
   }
 
   // the title screen shows the place with a few things to look at
+  buildBar();
   buildProps(); resetUps(); newHero(); applyLoad(false);
   P.rig.root.visible = true;
   resize();
-  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, useAbility, useUlt, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
+  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();
