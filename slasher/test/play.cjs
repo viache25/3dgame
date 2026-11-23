@@ -39,8 +39,8 @@ const out = (n) => path.join(__dirname, '../out', n);
   await p.click('#optSlot1 .opt[data-id="iai"]'); // the same technique in the other slot: the two swap
   await run(1.6);
   st = await p.evaluate(() => ({ load: JSON.stringify(__game.LOAD), kept: localStorage.getItem('blade-clay-loadout'), act: !!__game.P.act, mode: __game.S.mode, kills: __game.S.kills, pressed: document.querySelectorAll('#arsenal .opt[aria-pressed="true"]').length }));
-  assert.strictEqual(st.load, '{"style":"violet","slots":["wave","iai"]}', 'the choice is taken: ' + JSON.stringify(st));
-  assert(st.kept === st.load && !st.act && st.mode === 'title' && st.pressed === 3 && st.kills >= 1, 'kept, shown and tried: ' + JSON.stringify(st));
+  assert.strictEqual(st.load, '{"style":"violet","slots":["wave","iai"],"ult":"over"}', 'the choice is taken: ' + JSON.stringify(st));
+  assert(st.kept === st.load && !st.act && st.mode === 'title' && st.pressed === 4 && st.kills >= 1, 'kept, shown and tried: ' + JSON.stringify(st));
   await p.click('#arsenalDone');
   assert(await p.evaluate(() => !document.getElementById('title').hidden && document.getElementById('arsenal').hidden && !__game.enemies.length), 'back to the title, practice idol gone');
   await p.evaluate(() => { __game.begin(4242); __game.S.autoPick = true; window.clearIdols = () => { const g = __game; for (const e of g.enemies) if (!e.dead) { e.dead = true; if (e.rig.root.parent) e.rig.root.parent.remove(e.rig.root); } g.S.queue.length = 0; g.S.next = 1e9; }; window.risen = () => { const g = __game; for (let k = 0; k < 600; k++) { const e = g.enemies.find((x) => !x.dead && x.state !== 'rise'); if (e) return e; g.P.invul = 1; g.step(1 / 60); } throw new Error('no idol to cut'); }; });
@@ -61,6 +61,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   }, [dy0, dy1]);
   r = await cutIdol(-30, 40);
   assert(r.killed === 1 && r.made >= 2, 'a cut through the chest fells the idol: ' + JSON.stringify(r));
+  assert(await p.evaluate(() => __game.S.ult > 0), 'a kill charges the ultimate');
   await run(0.25);
   await shot('3-cut');
   // a real drag of the mouse across an idol, and a real key held down
@@ -99,12 +100,13 @@ const out = (n) => path.join(__dirname, '../out', n);
     e.yaw = Math.PI; g.P.x = e.x; g.P.z = e.z - 1.9; g.P.invul = 9;
     e.state = 'windup'; e.t = 0.3; e.atk = 1; for (let i = 0; i < 2; i++) g.step(1 / 240);
     e.rig.root.updateMatrixWorld(true); g.camera.updateMatrixWorld();
-    const f = new THREE.Vector3(0, -0.42, 0).applyMatrix4(e.rig.bones.foreR.matrixWorld), v = f.clone().project(g.camera), x = (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y = (0.5 - v.y * 0.5) * g.canvas.clientHeight, before = g.bodies.length;
+    // through the raised forearm: the hand and the blade in it come off
+    const f = new THREE.Vector3(0, -0.15, 0).applyMatrix4(e.rig.bones.foreR.matrixWorld), v = f.clone().project(g.camera), x = (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y = (0.5 - v.y * 0.5) * g.canvas.clientHeight, before = g.bodies.length;
     g.slash(x - 60, y, x + 60, y + 4);
     for (let i = 0; i < 6; i++) g.step(1 / 60);
-    return { dead: e.dead, state: e.state, made: g.bodies.length - before, fistY: f.y, pieces: e.rig.bones.foreR.pieces.length };
+    return { dead: e.dead, state: e.state, made: g.bodies.length - before, fistY: f.y, pieces: e.rig.bones.foreR.pieces.length, arm: e.arm };
   });
-  assert(!r.dead && r.made >= 1, 'the fist comes off and the idol lives: ' + JSON.stringify(r));
+  assert(!r.dead && r.made >= 1 && r.arm === 'L', 'the sword arm comes off, the synth lives and fights on with its other hand: ' + JSON.stringify(r));
   await shot('3b-fist');
   // slowed time: chop what is falling
   await p.evaluate(() => {
@@ -157,7 +159,7 @@ const out = (n) => path.join(__dirname, '../out', n);
     const g = __game, e = g.spawnIdol('thrower');
     g.P.invul = 0; g.P.hp = g.P.maxHp; g.P.speed = 0;
     let shots = 0;
-    for (let i = 0; i < 60 * 7; i++) { g.P.x = e.x; g.P.z = e.z + 8; g.step(1 / 60); if (g.bodies.some((b) => b.kind === 'shot')) shots++; }
+    for (let i = 0; i < 60 * 7; i++) { g.P.x = e.x; g.P.z = e.z + 8; g.step(1 / 60); if (g.bolts.length) shots++; }
     return { shots, hp: g.P.hp, max: g.P.maxHp, state: e.state };
   });
   assert(r.shots > 0 && r.hp < r.max, 'thrown fire flies and lands: ' + JSON.stringify(r));
@@ -230,6 +232,54 @@ const out = (n) => path.join(__dirname, '../out', n);
   assert(r.alive === 0 && !r.act, 'strike through: they fall when the blade is home: ' + JSON.stringify(r));
   await run(0.5);
   await shot('9f-iai-after');
+  // guard: a gunner's bolt is sent back and takes the gunner; the wanderer is not hurt
+  r = await p.evaluate(() => {
+    const g = __game;
+    setOut(['guard', 'fan'], []);
+    g.P.invul = 0;
+    const e = g.spawnIdol('thrower'), hp = g.P.hp;
+    let fired = false, turned = false;
+    for (let i = 0; i < 60 * 9 && !e.dead; i++) {
+      g.P.x = 0; g.P.z = 0; e.x = 0; e.z = 8;
+      if (g.bolts.length && !g.P.act && g.P.cd.guard <= 0) { fired = true; g.useAbility(0); }
+      if (g.bolts.some((b) => b.back)) turned = true;
+      g.step(1 / 60);
+    }
+    return { fired, turned, dead: e.dead, hurt: g.P.hp < hp };
+  });
+  assert(r.fired && r.turned && r.dead && !r.hurt, 'guard turns a bolt back on the gunner: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut(['guard', 'fan'], [[0, 6], [-1.9, 6], [1.9, 6]]); const ok = g.useAbility(1); go(0.12); return { ok, flying: g.waves.length }; });
+  assert(r.ok && r.flying === 3, 'fan: three discs are out: ' + JSON.stringify(r));
+  await shot('9g-fan');
+  r = await p.evaluate(() => { const g = __game; go(1.3); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length }; });
+  assert(r.alive === 0 && r.flying === 0, 'fan: each disc found its synth: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut(['leap', 'fan'], [[0, 7], [1.5, 7.5], [-1.4, 6.6], [0.5, 8.6]]); const ok = g.useAbility(0); go(0.2); return { ok, up: g.P.y }; });
+  assert(r.ok && r.up > 1.5, 'leap: he is in the air: ' + JSON.stringify(r));
+  await shot('9h-leap');
+  r = await p.evaluate(() => { const g = __game; go(0.25); const just = g.S.shake; go(0.6); return { alive: g.enemies.filter((e) => !e.dead).length, z: g.P.z, y: g.P.y, act: !!g.P.act, just }; });
+  assert(r.alive === 0 && r.z > 6 && r.y === 0 && !r.act, 'leap: he lands among them and they all fall: ' + JSON.stringify(r));
+  await shot('9i-leap-after');
+  // the ultimate: nothing until it is full; overload makes the blade longer for eight seconds and then it is over
+  r = await p.evaluate(() => {
+    const g = __game;
+    setOut(['leap', 'fan'], [[0, 5.2]]);
+    g.LOAD.ult = 'over'; g.applyLoad(false);
+    const reach0 = g.P.reach;
+    g.S.ult = 0.5; const early = g.useUlt();
+    g.S.ult = 1; const used = g.useUlt();
+    const reach1 = g.P.reach;
+    go(1); g.frame();
+    return { early, used, reach0, reach1, ult: g.S.ult };
+  });
+  assert(!r.early && r.used && r.reach1 > r.reach0 * 1.5 && r.ult === 0, 'overload: ' + JSON.stringify(r));
+  await shot('9j-overload');
+  st = await p.evaluate(() => { go(8); return __game.P.reach; });
+  assert(Math.abs(st - r.reach0) < 1e-9, 'overload ends: ' + st);
+  r = await p.evaluate(() => { const g = __game; setOut(['leap', 'fan'], [[0, 5], [0.8, 9], [-0.9, 13], [0.3, 17]]); g.LOAD.ult = 'saw'; g.applyLoad(false); g.S.ult = 1; const used = g.useUlt(); go(0.9); return { used, flying: g.waves.length }; });
+  assert(r.used && r.flying === 1, 'saw: it is rolling: ' + JSON.stringify(r));
+  await shot('9k-saw');
+  r = await p.evaluate(() => { const g = __game; go(2.6); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, bodies: g.bodies.length }; });
+  assert(r.alive === 0 && r.flying === 0 && r.bodies < 800, 'saw: the whole line is in blocks: ' + JSON.stringify(r));
   // a technique is not ready again at once, and the keys reach it
   r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.useAbility(0); go(0.7); const b = g.useAbility(0); return { a, b, cd: g.P.cd.spin }; });
   assert(r.a && !r.b && r.cd > 5, 'cooldown: ' + JSON.stringify(r));

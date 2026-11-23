@@ -2,12 +2,14 @@
 const T = THREE;
 const lin = (hex) => new T.Color(hex).convertSRGBToLinear();
 const PAL = [
-  0xb8603c, 0x7a3524, 0x21100c, 0xffb060, // 0 clay, 1 clay band, 2 clay inside, 3 eyes
-  0xa8977f, 0x362b27, 0x8a9448, 0x3d2f17, // 4 stone, 5 stone inside, 6 reed, 7 reed inside (insides are dark: the blade sears what it opens)
-  0xc48a56, 0x2f5a78, 0x3a1d14, 0x1c2350, // 8 jar, 9 jar glaze, 10 jar inside, 11 indigo cloth
-  0xc22f3a, 0xdcc47c, 0xd7a988, 0xe4edf7, // 12 red sash, 13 straw, 14 skin, 15 steel
-  0x12142a, 0x4b4458, 0xc9a044, 0xe8dcc0, // 16 dark wraps, 17 basalt, 18 gold, 19 bone paint
-  0x2a2233, 0xd9935a, 0x8a4a34,           // 20 basalt inside, 21 pale clay (imps), 22 old clay (the colossus)
+  0x3d4353, 0x79849c, 0x0c0e15, 0xff2d55, // 0 armour, 1 plates, 2 inside of a synth, 3 red light
+  0x5a6072, 0x191b23, 0x3df2ff, 0x082a30, // 4 concrete, 5 inside of concrete, 6 a tube of light, 7 inside of a tube
+  0x3a4252, 0xffd23f, 0x13151b, 0x2a2e48, // 8 drum, 9 hazard yellow, 10 inside of a drum, 11 the wanderer's coat
+  0xff2bd6, 0x4a5066, 0xc9a48c, 0xe4edf7, // 12 magenta, 13 hat, 14 skin, 15 steel
+  0x16181f, 0x4a3a5c, 0xd9a441, 0xd9dde6, // 16 dark wraps, 17 heavy armour, 18 brass, 19 white plate
+  0x120f18, 0xffe14d, 0x6a2f50,           // 20 inside of heavy armour, 21 yellow light, 22 the colossus
+  0x3df2ff, 0xff2bd6, 0xff8a1e, 0xffc46b, // 23 cyan light, 24 magenta light, 25 orange light, 26 warm window
+  0x0d0f18, 0x5dff8f, 0x1b1d26,           // 27 a tower at night, 28 green light, 29 asphalt
 ].map(lin);
 // uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
 const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };
@@ -46,10 +48,13 @@ const PART_MAT = (function () {
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 aCut;\nvarying vec2 vCut;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCut = aCut;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform vec3 uHotA, uHotB;\nvarying vec2 vCut;').replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       if (vCut.y > 0.0) {
-        bool blade = vCut.x > 1.5e6, ember = vCut.x > 9.0e5 && !blade; // the blade itself, and fire that is the idol's own
-        float age = (blade || ember) ? 0.45 : max(uTime - vCut.x, 0.0);
-        vec3 hot = mix(ember ? vec3(1.0, 0.1, 0.01) : uHotB, ember ? vec3(1.0, 0.45, 0.1) : uHotA, exp(-age * 1.4));
-        totalEmissiveRadiance += hot * vCut.y * (2.6 * exp(-age * 0.55) + 0.5 * exp(-age * 0.1));
+        if (vCut.x > 2.5e6) totalEmissiveRadiance += vColor.rgb * vCut.y * 2.4; // a light of its own colour: signs, visors, tubes
+        else {
+          bool blade = vCut.x > 1.5e6, ember = vCut.x > 9.0e5 && !blade; // the wanderer's blade and trim; and a steady warm light
+          float age = (blade || ember) ? 0.45 : max(uTime - vCut.x, 0.0);
+          vec3 hot = mix(ember ? vec3(1.0, 0.1, 0.01) : uHotB, ember ? vec3(1.0, 0.45, 0.1) : uHotA, exp(-age * 1.4));
+          totalEmissiveRadiance += hot * vCut.y * (2.6 * exp(-age * 0.55) + 0.5 * exp(-age * 0.1));
+        }
       }`);
   };
   return m;

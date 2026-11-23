@@ -57,6 +57,7 @@ function makeTrails(scene, count) {
         const k = 1 - Math.max(0, t.age - o.T - hold) / fade;
         if (k <= 0) { t.mesh.visible = false; continue; }
         if (o.follow) t.u.uP.value.fromArray(o.follow());
+        if (o.grow) { const g = 1 + o.grow * t.age; t.u.uArc.value.set(o.a0, o.a1, o.r0 * g, o.r1 * g); } // a ring that spreads
         const open = Math.min(1, t.age / o.T);
         t.u.uOpen.value = 1 - (1 - open) * (1 - open); t.u.uFade.value = Math.min(1, k); t.u.uTime.value = time;
       }

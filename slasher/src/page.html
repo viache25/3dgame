@@ -1,4 +1,4 @@
-<title>Клинок и глина</title>
+<title>Клинок и неон</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Golos+Text:wght@400;600;800&display=swap">
 <style>
@@ -68,17 +68,21 @@ body.touch .pads { display: flex; }
 .abil kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 2px 7px; }
 .abil i { position: absolute; inset: 0; background: rgba(23, 15, 32, 0.82); transform-origin: 50% 100%; transform: scaleY(0); pointer-events: none; }
 .abil.wait { color: var(--dim); border-color: var(--line); }
-body.touch .abils { left: auto; bottom: calc(108px + env(safe-area-inset-bottom, 0px)); gap: 12px; padding-block: 0; }
-body.touch .abil { width: 74px; height: 74px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; border-width: 2px; font-size: 11px; letter-spacing: 0.03em; }
+.abil.ult.ready { box-shadow: 0 0 18px var(--style), inset 0 0 0 1px var(--style); }
+.abil.ult i { background: rgba(23, 15, 32, 0.9); }
+body.touch .abils { left: auto; bottom: calc(108px + env(safe-area-inset-bottom, 0px)); gap: 9px; padding-block: 0; }
+body.touch .abil { width: 66px; height: 66px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; border-width: 2px; font-size: 11px; letter-spacing: 0.03em; }
 
 /* the arsenal: three shelves of choices; what is chosen carries the colour of the blade */
-#arsenal { justify-content: flex-start; gap: 9px; }
-#arsenal h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 4.6vw, 48px); line-height: 1; color: var(--ink); }
-#arsenal h3 { margin: 4px 0 0; font: 800 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+#arsenal { justify-content: flex-start; gap: 6px; padding-block: 16px; }
+#arsenal h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(26px, 3.6vw, 40px); line-height: 1; color: var(--ink); }
+#arsenal h3 { margin: 2px 0 0; font: 800 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
 #arsenal h3 kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 1px 6px; }
 #arsenal > .opts { width: 100%; max-width: min(540px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 #arsenal > #optStyle { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-#optStyle .opt span { display: none; }
+#arsenal .opt span { display: none; }
+#arsenal > .opts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#arsenal .about { min-height: 2.5em; font-size: 12.5px; line-height: 1.35; color: var(--dim); max-width: min(540px, 100%); }
 .opt { position: relative; display: grid; align-content: start; gap: 2px; min-width: 0; text-align: left; padding: 8px 10px 8px 14px; font: 12px/1.3 var(--ui); color: var(--dim); background: var(--plate); border: 1px solid var(--line); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 .opt b { font: 800 14px/1.2 var(--ui); color: var(--ink); }
 .opt i { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
@@ -101,7 +105,7 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
   #levelup > #cards { grid-template-columns: 1fr; } .card { padding: 13px 14px; gap: 4px; }
   /* on a phone the arsenal takes the lower part of the screen and the practice idol stays in view above it */
   #arsenal { inset: 34% 0 0 0; padding-block: 14px; background: linear-gradient(180deg, rgba(23, 15, 32, 0.55), rgba(23, 15, 32, 0.96) 12%); }
-  .opt span { display: none; } .opt { padding-block: 9px; } #arsenal > #optStyle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .opt span { display: none; } .opt { padding-block: 9px; } #arsenal > .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats { gap: 12px; } .stat b { font-size: 18px; } #sound { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint, .card, .opt { transition: none; } }
@@ -128,27 +132,28 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
   <div class="abils gutter" id="abils" hidden>
     <button class="abil" id="abil0" type="button"><kbd class="for-keys">Q</kbd><span id="abilName0"></span><i id="abilCd0"></i></button>
     <button class="abil" id="abil1" type="button"><kbd class="for-keys">E</kbd><span id="abilName1"></span><i id="abilCd1"></i></button>
+    <button class="abil ult" id="abil2" type="button"><kbd class="for-keys">R</kbd><span id="abilName2"></span><i id="abilCd2"></i></button>
   </div>
   <div class="pads gutter">
     <button class="pad" id="btnFocus" type="button" aria-pressed="false">Фокус</button>
     <button class="pad" id="btnDash" type="button">Рывок</button>
   </div>
   <div id="title" class="sheet gutter">
-    <h1>Клинок <em>и&nbsp;глина</em></h1>
-    <p>Глиняные идолы встают из песка, внутри у них огонь. Твой клинок раскалён и режет ровно там, где ты провёл линию.</p>
+    <h1>Клинок <em>и&nbsp;неон</em></h1>
+    <p>Ночной город, дождь. С крыш падают синтеты с клинками. Твой клинок режет ровно там, где ты провёл линию.</p>
     <ul class="keys for-keys">
       <li><b>Провести мышью</b> — разрез по этой линии</li>
       <li><b>Щелчок</b> — быстрый удар по ближнему</li>
       <li><b>WASD</b> — бег, <b>пробел</b> — рывок</li>
       <li><b>Shift</b> или правая кнопка — замедлить время и рубить на куски</li>
-      <li><b>Q</b> и <b>E</b> — приёмы, бьют туда, где мышь</li>
+      <li><b>Q</b> и <b>E</b> — приёмы, бьют туда, где мышь; <b>R</b> — ульта, копится за сражённых</li>
     </ul>
     <ul class="keys for-touch">
       <li><b>Провести пальцем</b> — разрез по этой линии</li>
       <li><b>Коснуться</b> — быстрый удар по ближнему</li>
       <li><b>Левый палец</b> ведёт героя</li>
       <li><b>Фокус</b> замедляет время, <b>Рывок</b> уводит из-под удара</li>
-      <li>Две верхние кнопки — приёмы, бьют по ближнему</li>
+      <li>Верхние кнопки — два приёма и ульта, бьют по ближнему</li>
     </ul>
     <div class="row"><button class="go" id="start" type="button">В бой</button><button class="go quiet" id="openArsenal" type="button">Арсенал</button></div>
   </div>
@@ -166,10 +171,16 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <h2>Арсенал</h2>
     <h3>Стиль клинка</h3>
     <div class="opts" id="optStyle"></div>
+    <p class="about" id="aboutStyle"></p>
     <h3>Приём <kbd class="for-keys">Q</kbd><span class="for-touch">первый</span></h3>
     <div class="opts" id="optSlot0"></div>
+    <p class="about" id="aboutSlot0"></p>
     <h3>Приём <kbd class="for-keys">E</kbd><span class="for-touch">второй</span></h3>
     <div class="opts" id="optSlot1"></div>
+    <p class="about" id="aboutSlot1"></p>
+    <h3>Ульта <kbd class="for-keys">R</kbd></h3>
+    <div class="opts" id="optUlt"></div>
+    <p class="about" id="aboutUlt"></p>
     <button class="go" id="arsenalDone" type="button">Готово</button>
   </div>
   <div id="pause" class="sheet gutter" hidden>

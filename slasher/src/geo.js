@@ -1,8 +1,8 @@
 // Convex pieces. A piece is a closed convex solid kept as face loops, so a plane cut is exact and what comes out can be cut again.
 // piece = { faces: [{ p: [x,y,z,...], n: [x,y,z], d, cap, heat, col }], pts: [x,y,z,...], c: [x,y,z], vol, r, inner, glow, tag }
-//   cap  < 0: skin. cap >= 0: the time this face was cut open (it glows from then). cap >= GEO.PERM: glows for good (eyes). cap >= GEO.BLADE: glows for good in the colour of the blade.
+//   cap  < 0: skin. cap >= 0: the time this face was cut open (it glows from then). cap >= GEO.PERM: glows for good (eyes). cap >= GEO.BLADE: glows for good in the colour of the blade. cap >= GEO.NEON: glows for good in its own colour.
 var GEO = (function () {
-  const EPS = 1e-5, PERM = 1e6, BLADE = 2e6;
+  const EPS = 1e-5, PERM = 1e6, BLADE = 2e6, NEON = 3e6;
 
   function normalOf(p, out) { // Newell; returns the area
     let nx = 0, ny = 0, nz = 0;
@@ -254,6 +254,6 @@ var GEO = (function () {
     return { pieces: out, sides, groups, cut };
   }
 
-  return { EPS, PERM, BLADE, finish, lathe, box, xf, place, shifted, side, split, touching, cutSet, normalOf };
+  return { EPS, PERM, BLADE, NEON, finish, lathe, box, xf, place, shifted, side, split, touching, cutSet, normalOf };
 })();
 if (typeof module !== 'undefined') module.exports = GEO;
