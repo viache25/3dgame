@@ -794,9 +794,9 @@ function makeTrails(scene, count) {
           float core = smoothstep(w, 0.0, abs(v - edge));
           float wake = smoothstep(0.0, edge, v) * smoothstep(edge + 0.12, edge - 0.02, v) * taper;
           wake *= mix(0.5 * v, (0.15 + 1.5 * n * n) * v, uFlame);
-          float lead = mix(0.3, 1.0, pow(u, 1.8));
+          float lead = mix(0.3, 1.0, pow(clamp(u, 0.0, 1.0), 1.8));
           float alive = clamp((u - (1.0 - uFade) * 1.1 + 0.3) / 0.3, 0.0, 1.0) * sqrt(uFade);
-          vec3 col = uColA * core + uColB * wake + vec3(1.0) * pow(core, 6.0) * 0.4;
+          vec3 col = uColA * core + uColB * wake + vec3(1.0) * pow(max(core, 0.0), 6.0) * 0.4;
           gl_FragColor = vec4(col * lead * alive * uGain, 1.0);
         }`,
     });
@@ -953,7 +953,7 @@ function makeFires(scene, max) {
         float f = smoothstep(0.0, 0.3, d), core = smoothstep(0.22, 0.66, d), white = smoothstep(0.55, 0.95, d) * (1.0 - 0.7 * y);
         vec3 col = uColB * f * (1.0 - core) * 1.5 + uColA * core * 0.85 + vec3(1.0, 0.88, 0.7) * white * 0.75;
         float k = vInf.z * smoothstep(0.0, 0.07, age) * (1.0 - age * age * age);
-        gl_FragColor = vec4(col * k, clamp(f * 0.62 * k, 0.0, 0.85)); // it adds its light, and hides a part of what is behind it
+        gl_FragColor = vec4(col * k, clamp(max(col.r, max(col.g, col.b)) * 0.5 * k, 0.0, 0.8)); // it adds its light and hides a part of what is behind it, but only as much as it shines: a dim edge never darkens anything
       }`,
   });
   const mesh = new T.Mesh(g, mat);
@@ -1044,10 +1044,10 @@ function makeSweep(scene, n) {
         float streak = noise(vec2(v * 13.0 + uTime * 0.6, age * 2.2 - uTime * 1.5));        // long streaks that lie along the way the blade went
         float fl = smoothstep(age * 1.05 - 0.05, age * 1.05 + 0.42, v * (0.4 + 0.9 * nz));   // the guard end goes dark first
         fl *= smoothstep(1.0, 0.93, v) * smoothstep(0.0, 0.12, v) * (0.25 + 0.75 * smoothstep(0.3, 0.7, streak));
-        float edge = pow(v, 7.0) * (1.0 - age) * (1.0 - age);
+        float edge = pow(clamp(v, 0.0, 1.0), 7.0) * (1.0 - age) * (1.0 - age); // clamped: a power of a number a hair below zero is not a number, and one such pixel spreads into a black streak
         vec3 col = mix(uColB * 1.5, uColA * 0.75, clamp(v * 1.1 - age * 1.2, 0.0, 1.0)) * fl * (0.3 + 0.7 * v) + vec3(1.0, 0.9, 0.75) * edge * fl * 0.9;
         float k = (1.0 - age) * vHeat * uGain;
-        gl_FragColor = vec4(col * k, clamp(fl * 0.4 * k, 0.0, 0.6));
+        gl_FragColor = vec4(col * k, clamp(max(col.r, max(col.g, col.b)) * 0.4 * k, 0.0, 0.6)); // hides only as much as it shines, so its dim end leaves no dark streaks
       }`,
   });
   const mesh = new T.Mesh(g, mat);
@@ -1743,7 +1743,7 @@ const SFX = (function () {
       void main(){
         vec2 q = vUv - 0.5;
         vec2 off = q * ab * (0.5 + dot(q, q) * 3.0); // colours pull apart toward the edges, and harder on a blow
-        vec3 raw = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);
+        vec3 raw = max(vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b), 0.0);
         vec3 c = aces(raw * (1.0 - 0.2 * calm));
         float lum = dot(c, vec3(0.3, 0.55, 0.15));
         c = mix(vec3(lum), c, 1.12) + vec3(0.0, 0.006, 0.022) * (1.0 - lum); // a little more colour, and blue in the dark
@@ -1885,6 +1885,7 @@ const SFX = (function () {
 
   // ---- the wanderer
   const katana = MODELS.katana();
+  katana.traverse((o) => { o.castShadow = false; }); // a blade on fire throws light, not a shadow: its shadow was a thin black line whipping over the ground with every turn
   scene.add(katana);
   // the blade is on fire: sheets of flame along it, embers climbing off it, and a light of its own that everything near it catches
   const bladeFire = makeBladeFire(), bladeLight = new T.PointLight(new T.Color(1, 0.5, 0.2), 2, 8, 1.5), bladeAxis = new T.Vector3();

@@ -39,7 +39,7 @@
       void main(){
         vec2 q = vUv - 0.5;
         vec2 off = q * ab * (0.5 + dot(q, q) * 3.0); // colours pull apart toward the edges, and harder on a blow
-        vec3 raw = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);
+        vec3 raw = max(vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b), 0.0);
         vec3 c = aces(raw * (1.0 - 0.2 * calm));
         float lum = dot(c, vec3(0.3, 0.55, 0.15));
         c = mix(vec3(lum), c, 1.12) + vec3(0.0, 0.006, 0.022) * (1.0 - lum); // a little more colour, and blue in the dark
@@ -181,6 +181,7 @@
 
   // ---- the wanderer
   const katana = MODELS.katana();
+  katana.traverse((o) => { o.castShadow = false; }); // a blade on fire throws light, not a shadow: its shadow was a thin black line whipping over the ground with every turn
   scene.add(katana);
   // the blade is on fire: sheets of flame along it, embers climbing off it, and a light of its own that everything near it catches
   const bladeFire = makeBladeFire(), bladeLight = new T.PointLight(new T.Color(1, 0.5, 0.2), 2, 8, 1.5), bladeAxis = new T.Vector3();
