@@ -337,6 +337,26 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game; go(4.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, bodies: g.bodies.length }; }); // each kill holds the world for a moment, so the roll takes longer than its distance alone
   assert(r.alive === 0 && r.flying === 0 && r.bodies < 800, 'saw: the whole line is in blocks: ' + JSON.stringify(r));
   // a technique is not ready again at once, and the keys reach it
+  // the synths that are hard to kill, each in its own way
+  await p.evaluate(() => {
+    const g = __game;
+    window.put = (kind, x, z) => { const e = g.spawnIdol(kind); e.speed = 0; e.range = -1; for (let i = 0; i < 90; i++) { e.x = x; e.z = z; g.P.x = 0; g.P.z = 0; g.P.invul = 99; g.step(1 / 60); } return e; };
+    window.hit = (e) => { g.camera.updateMatrixWorld(); const v = new THREE.Vector3(e.x, 1.1 * Math.min(e.scale, 1.4), e.z).project(g.camera), x = (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y = (0.5 - v.y * 0.5) * g.canvas.clientHeight; g.slash(x - 110, y - 30, x + 110, y + 40); go(0.3); };
+  });
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const e = put('shield', 1.8, 0.3); hit(e); hit(e); const two = { dead: e.dead, hp: e.shieldHp }; hit(e); const broke = { dead: e.dead, hp: e.shieldHp }; go(0.7); hit(e); return { two, broke, dead: e.dead }; });
+  assert(!r.two.dead && r.two.hp === 1 && !r.broke.dead && r.broke.hp === 0 && r.dead, 'shield: the wall takes three blows from the front, then it can be cut: ' + JSON.stringify(r));
+  await shot('9m-shield');
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const e = put('shield', 1.8, 0.3); g.P.x = e.x + 1.7; g.P.z = e.z; hit(e); return { dead: e.dead, hp: e.shieldHp }; });
+  assert(r.dead && r.hp === 3, 'shield: from behind the wall is no use: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const e = put('ninja', 1.8, 0.3), x0 = e.x; hit(e); const first = { dead: e.dead, moved: Math.hypot(e.x - x0, e.z - 0.3), dodge: e.dodge }; e.state = 'windup'; e.t = 0; hit(e); return { first, dead: e.dead }; });
+  assert(!r.first.dead && r.first.moved > 2 && r.first.dodge > 1 && r.dead, 'ninja: gone from under the first blow, cut down in the middle of its own: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const e = put('brute', 2, 0.3); hit(e); const first = { dead: e.dead, armor: e.armor, bodies: g.bodies.filter((b) => !b.anchored).length }; go(0.3); hit(e); return { first, dead: e.dead }; });
+  assert(!r.first.dead && r.first.armor === 0 && r.first.bodies >= 3 && r.dead, 'brute: the first felling blow only strips its armour: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const b = put('bomber', 1.8, 0.3), n = put('grunt', 3.3, 1.3); hit(b); const cut = b.dead, before = { hp: g.P.hp, n: n.dead }; g.P.invul = 0; g.P.hp = g.P.maxHp; go(0.9); return { cut, before, hp: g.P.hp, max: g.P.maxHp, n: n.dead }; });
+  assert(r.cut && !r.before.n && r.hp < r.max && r.n, 'bomber: cut down, it goes off a moment later and takes the wanderer and its neighbour with it: ' + JSON.stringify(r));
+  await shot('9n-boom');
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const b = g.spawnIdol('bomber'); g.P.invul = 0; g.P.hp = g.P.maxHp; for (let i = 0; i < 60 * 8 && !b.dead; i++) { g.P.x = 0; g.P.z = 0; g.step(1 / 60); } go(0.4); return { dead: b.dead, hp: g.P.hp, max: g.P.maxHp }; });
+  assert(r.dead && r.hp < r.max, 'bomber: left alone it runs in and goes off by itself: ' + JSON.stringify(r));
   // with cooldowns on, the whirl is short of ready for a couple of seconds; with them off, it is ready the moment the last one ends
   r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(0.5); const during = g.cast(slots[0]); go(0.8); const b = g.cast(slots[0]), out = { a, during, b, cd: g.P.cd.spin, cool: g.COOL }; go(1.3); return out; });
   assert(r.a && !r.during && (r.cool ? !r.b && r.cd > 1.5 && r.cd < 3.5 : r.b && r.cd === 0), 'cooldown: ' + JSON.stringify(r));

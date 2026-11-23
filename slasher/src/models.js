@@ -32,8 +32,9 @@ const MODELS = (function () {
   // kind: grunt (red, a katana), imp (small, yellow, a short blade in each hand), thrower (cyan, a gun), brute (orange, a long heavy blade),
   // colossus (magenta and brass; its legs are not vital, so it can be felled and finished on the ground)
   function synth(kind) {
-    const brute = kind === 'brute', giant = kind === 'colossus', imp = kind === 'imp', gunner = kind === 'thrower';
-    const armour = brute ? 17 : giant ? 22 : 0, plate = giant ? 18 : brute ? 1 : 1, inner = brute || giant ? 20 : 2, light = brute ? 25 : giant ? 24 : imp ? 21 : gunner ? 23 : 3;
+    const brute = kind === 'brute', giant = kind === 'colossus', imp = kind === 'imp', gunner = kind === 'thrower', shield = kind === 'shield', ninja = kind === 'ninja', bomber = kind === 'bomber';
+    const armour = brute ? 17 : giant ? 22 : ninja ? 16 : bomber ? 9 : 0, plate = giant ? 18 : shield ? 19 : ninja ? 0 : 1, inner = brute || giant ? 20 : 2, light = brute ? 25 : giant ? 24 : imp ? 21 : gunner ? 23 : shield ? 28 : ninja ? 24 : 3;
+    const shed = brute ? { plate: true } : null; // the plates a heavy synth wears over its frame come off before it can be cut down
     const o = (col, extra) => Object.assign({ col, inner, glow: 1 }, extra || {});
     const core = { core: true }, chest = { core: true, chest: true }, legs = giant ? null : core, held = { fist: true };
     // what is in the hand, hanging from the forearm and pointing forward: grip, guard, and the blade, which is the part that counts as the weapon
@@ -51,7 +52,7 @@ const MODELS = (function () {
       const hand = P(B(0.08, 0.09, 0.08, o(16, hold ? null : { tag: held })), 0, -0.38, 0);
       return [
         { name: 'arm' + s, parent: 'chest', at: [(s === 'L' ? 1 : -1) * 0.27, 0.43, 0], pieces: [
-          P(B(0.16, 0.085, 0.18, o(plate, { taper: 0.72 })), 0, 0.0, 0),
+          P(B(brute ? 0.2 : 0.16, brute ? 0.11 : 0.085, brute ? 0.22 : 0.18, o(plate, { taper: 0.72, tag: shed })), 0, 0.0, 0),
           neon(P(B(0.165, 0.016, 0.185, o(light)), 0, -0.012, 0), 0.5),
           limb(0.3, 0.062, 0.052, o(armour, { sides: 6 })),
         ] },
@@ -82,7 +83,14 @@ const MODELS = (function () {
     if (brute || giant) head.push(P(L([[0.045, 0], [0, 0.3]], o(18, { sides: 5 })), 0.12, 0.24, 0.02, 0, 0, -0.55), P(L([[0.045, 0], [0, 0.3]], o(18, { sides: 5 })), -0.12, 0.24, 0.02, 0, 0, 0.55));
     else if (!imp) head.push(P(B(0.03, 0.13, 0.17, o(plate)), 0, 0.27, -0.04));
     if (imp) for (let i = 0; i < head.length; i++) head[i] = P(head[i], 0, 0, 0, 0, 0, 0, 1.35);
-    const right = gunner ? gun() : sword(imp ? 0.5 : brute ? 1.4 : giant ? 1.5 : 0.98, brute || giant ? 0.075 : 0.045);
+    const right = gunner ? gun() : sword(imp ? 0.5 : ninja ? 0.8 : bomber ? 0.4 : brute ? 1.4 : giant ? 1.5 : 0.98, brute || giant ? 0.075 : 0.045);
+    // a wall of light carried on the left arm, wide and tall enough to stand behind
+    const wall = () => [
+      neon(P(B(0.72, 1.12, 0.035, o(light, { taper: 0.82, tag: { shield: true } })), -0.26, -0.86, 0.34), 0.42),
+      P(B(0.76, 0.05, 0.06, o(plate, { tag: { shield: true } })), -0.26, -0.88, 0.34),
+      P(B(0.1, 0.1, 0.3, o(16, { tag: { shield: true } })), -0.1, -0.36, 0.16),
+    ];
+    const left = imp ? sword(0.5, 0.045) : ninja ? sword(0.8, 0.045) : shield ? wall() : null;
     return [
       { name: 'hips', parent: null, at: [0, 0.9, 0], pieces: [
         P(B(0.32, 0.2, 0.22, o(armour, { taper: 1.06, tag: legs })), 0, -0.1, 0),
@@ -91,12 +99,13 @@ const MODELS = (function () {
       { name: 'chest', parent: 'hips', at: [0, 0.09, 0], pieces: [
         L([[0.14, 0], [0.17, 0.2]], o(armour, { sides: 6, sz: 0.74, tag: core })),
         P(L([[0.17, 0], [0.25, 0.2], [0.22, 0.34]], o(armour, { sides: 6, sz: 0.7, tag: chest })), 0, 0.18, 0),
-        P(B(0.27, 0.17, 0.05, o(plate, { taper: 0.78 })), 0, 0.31, 0.125),
+        P(B(brute ? 0.32 : 0.27, brute ? 0.26 : 0.17, brute ? 0.08 : 0.05, o(plate, { taper: 0.78, tag: shed })), 0, brute ? 0.24 : 0.31, 0.125),
         neon(P(B(0.15, 0.02, 0.035, o(light)), 0, 0.275, 0.16), 0.9),
-        P(B(0.19, 0.22, 0.07, o(plate)), 0, 0.25, -0.185),
-      ] },
+        P(B(brute ? 0.3 : 0.19, brute ? 0.28 : 0.22, brute ? 0.09 : 0.07, o(plate, { tag: shed })), 0, brute ? 0.2 : 0.25, -0.185),
+      ].concat(bomber ? [neon(P(L([[0.1, 0], [0.12, 0.05], [0.12, 0.31], [0.1, 0.36]], o(25, { sides: 7 })), 0, 0.1, -0.3), 1.3)] : []).concat([
+      ]) },
       { name: 'head', parent: 'chest', at: [0, 0.53, 0], pieces: head },
-      ...arm('L', imp ? sword(0.5, 0.045) : null), ...arm('R', right), ...leg('L'), ...leg('R'),
+      ...arm('L', left), ...arm('R', right), ...leg('L'), ...leg('R'),
     ];
   }
 

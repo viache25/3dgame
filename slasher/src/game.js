@@ -154,6 +154,7 @@
     for (const e of enemies) if (!e.dead) { scene.remove(e.rig.root); MODELS.dispose(e.rig); }
     enemies.length = 0; solids.length = 0; FIRES.clear(); SCORCH.clear();
     for (let i = bolts.length - 1; i >= 0; i--) dropBolt(i, false);
+    booms.length = 0;
   }
   function prop(pieces, x, z, r) {
     const world = pieces.map((p) => GEO.shifted(p, x, 0, z));
@@ -474,7 +475,14 @@
     thrower: { scale: 0.98, speed: 2.3, range: 1.4, dmg: 10, wind: 0.55, xp: 3 },
     brute: { scale: 1.5, speed: 1.75, range: 2.2, dmg: 26, wind: 0.72, xp: 5 },
     colossus: { scale: 3.2, speed: 1.3, range: 3.6, dmg: 34, wind: 1.0, xp: 25 },
+    // shield: a wall of light on its arm stops every blow that comes from in front; three blows break the wall, or go round it
+    shield: { scale: 1.1, speed: 2.2, range: 1.65, dmg: 14, wind: 0.55, xp: 4 },
+    // ninja: when a blow would land and it is not in the middle of its own, it is suddenly behind the wanderer and already swinging
+    ninja: { scale: 0.92, speed: 4.3, range: 1.5, dmg: 12, wind: 0.34, xp: 4 },
+    // bomber: runs in and goes off; and it goes off a moment after it is cut down too, taking whatever stands near with it
+    bomber: { scale: 0.82, speed: 4.0, range: 1.35, dmg: 24, wind: 0.6, xp: 3 },
   };
+  const cutFrom = { x: 0, z: 0 }, booms = []; // where the cut now being made comes from; and what is about to go off
   function spawnIdol(kind) {
     if (!KINDS[kind]) kind = 'grunt';
     const K = KINDS[kind], giant = kind === 'colossus', rig = MODELS.makeRig(MODELS.synth(kind)), scale = K.scale * (giant ? 1 : 0.94 + rnd() * 0.12);
@@ -485,7 +493,7 @@
       if (Math.hypot(x, z) < ARENA - 3 && !solids.some((s) => s.body && Math.hypot(s.x - x, s.z - z) < s.r + 1)) break;
     }
     const e = { rig, kind, brute: kind === 'brute', scale, x, z, yaw: Math.atan2(P.x - x, P.z - z), state: 'rise', t: 0, phase: rnd() * 6, walk: 0, atk: 0, hit: 0, struck: false, dead: false, vx: 0, vz: 0, arm: 'R',
-      speed: K.speed * (0.94 + rnd() * 0.12), range: K.range, dmg: K.dmg, wind: K.wind, xp: K.xp, rad: 0.42 * scale, riseT: giant ? 1.2 : 0.62, cool: 0.6 + rnd(), ranged: false, down: false, vy: 0, dropTo: 0 };
+      speed: K.speed * (0.94 + rnd() * 0.12), range: K.range, dmg: K.dmg, wind: K.wind, xp: K.xp, rad: 0.42 * scale, riseT: giant ? 1.2 : 0.62, cool: 0.6 + rnd(), ranged: false, down: false, vy: 0, dropTo: 0, shieldHp: kind === 'shield' ? 3 : 0, armor: kind === 'brute' ? 1 : 0, dodge: 0, blockAt: -1 };
     rig.root.scale.setScalar(scale);
     rig.root.position.set(x, 15, z);
     rig.root.rotation.y = e.yaw;
@@ -525,7 +533,7 @@
     if (!P.dead && Math.hypot(P.x - x, P.z - z) < radius) hurt(dmg, x, z);
   }
   // the light each kind carries, as it shows in their blades and in what flies off them
-  const LIGHTS = { grunt: [2.6, 0.2, 0.4], imp: [2.4, 2.0, 0.3], thrower: [0.3, 2.2, 2.6], brute: [2.6, 1.0, 0.15], colossus: [2.6, 0.3, 2.2] };
+  const LIGHTS = { grunt: [2.6, 0.2, 0.4], imp: [2.4, 2.0, 0.3], thrower: [0.3, 2.2, 2.6], brute: [2.6, 1.0, 0.15], colossus: [2.6, 0.3, 2.2], shield: [0.5, 2.6, 1.0], ninja: [2.6, 0.3, 2.2], bomber: [2.8, 0.5, 0.1] };
   // ---- bolts: what a gunner fires. Straight and fast; a cut through one kills it, and a guard sends it back to whoever fired it
   const bolts = [], boltGeo = new T.BoxGeometry(0.07, 0.07, 0.8);
   function fireBolt(e) {
@@ -582,16 +590,17 @@
     }
     for (let i = 0; i < 14; i++) SPARKS.add(e.x, y, e.z, (rnd() - 0.5) * 9, rnd() * 6, (rnd() - 0.5) * 9, c[0], c[1], c[2], 1, 0.035 + rnd() * 0.04, 0.3 + rnd() * 0.5, 1.4, 12);
     // and the fire of the blade takes what is left: a burst, a patch that goes on burning where it stood, and light over everything near
-    const big = e.kind === 'colossus' ? 2.2 : e.kind === 'brute' ? 1.4 : e.kind === 'imp' ? 0.7 : 1;
+    const big = e.kind === 'colossus' ? 2.2 : e.kind === 'brute' ? 1.4 : e.kind === 'imp' || e.kind === 'bomber' ? 0.7 : 1;
     blaze(e.x, y * 0.6, e.z, Math.round(7 * big), 0.9 * big, 5.5 * big);
     fire(e.x, 0.03, e.z, 1.9 * big, 0.55, { gain: 1.2, keep: true });
     for (let i = 0; i < Math.round(3 * big); i++) { const g = rnd() * 6.28, r = (0.25 + rnd() * 0.6) * big; fire(e.x + Math.cos(g) * r, 0.03, e.z + Math.sin(g) * r, (0.6 + rnd() * 0.6) * big, 1.5 + rnd(), { delay: rnd() * 0.15, keep: true }); }
     S.kick = 1;
   }
   function updateIdols(dt) {
+    for (let i = booms.length - 1; i >= 0; i--) if (S.time >= booms[i].at) { const b = booms[i]; booms.splice(i, 1); boom(b.x, b.z); }
     for (const e of enemies) {
       if (e.dead) continue;
-      e.t += dt; e.cool = Math.max(0, e.cool - dt);
+      e.t += dt; e.cool = Math.max(0, e.cool - dt); e.dodge = Math.max(0, e.dodge - dt);
       const dx = P.x - e.x, dz = P.z - e.z, dist = Math.hypot(dx, dz) || 1e-3, giant = e.kind === 'colossus';
       let turn = 0, go = 0;
       const want = Math.atan2(dx, dz);
@@ -620,6 +629,7 @@
         if (!e.struck && e.t >= 0.08) {
           e.struck = true;
           if (e.ranged) fireBolt(e);
+          else if (e.kind === 'bomber') { e.fused = true; const n = new T.Vector3(0.2, 1, 0.1).normalize(); cutIdol(e, { n, d: n.x * e.x + n.y * 0.9 * e.scale + n.z * e.z, u: new T.Vector3(1, 0, 0), pierce: true }, () => true); }
           else if (giant) { const f = e.down ? fistPos(e) : footPos(e); quake(f.x, f.z, e.down ? 2.6 : 3.4, e.down ? 24 : e.dmg); }
           else {
             const f = fistPos(e), c = LIGHTS[e.kind] || LIGHTS.grunt;
@@ -638,6 +648,8 @@
         e.atk *= Math.exp(-dt * 8); e.hit *= Math.exp(-dt * 8);
         if (e.t >= (giant ? 1.3 : 0.6)) { e.state = 'chase'; e.t = 0; }
       }
+      if (e.dead) continue;
+      if (e.kind === 'bomber' && e.state === 'windup' && rnd() < dt * 30) fire(e.x + (rnd() - 0.5) * 0.4, 0.9 * e.scale, e.z + (rnd() - 0.5) * 0.4, 0.5, 0.25, { gain: 1.1 }); // it is about to go off
       if (e.down && e.rig.root.position.y > e.dropTo) { // legs gone: the rest comes down
         e.vy -= 26 * dt;
         e.rig.root.position.y = Math.max(e.dropTo, e.rig.root.position.y + e.vy * dt);
@@ -731,16 +743,79 @@
     }
     return b;
   }
+  // pieces that carry a tag come off a synth and fall as loose parts: a broken wall of light, shed armour
+  function shed(e, key) {
+    e.rig.root.updateMatrixWorld(true);
+    for (const b of e.rig.list) {
+      const keep = [], world = [];
+      for (const p of b.pieces) { if (p.tag && p.tag[key]) { const w = GEO.xf(p, b.matrixWorld.elements); if (w) world.push(w); } else keep.push(p); }
+      if (keep.length === b.pieces.length) continue;
+      b.pieces = keep; MODELS.rebuild(b);
+      for (const w of world) addBody([w], { time: S.time, v: [(rnd() - 0.5) * 5, 2 + rnd() * 3, (rnd() - 0.5) * 5], w: [(rnd() - 0.5) * 9, (rnd() - 0.5) * 9, (rnd() - 0.5) * 9] });
+    }
+  }
+  function clash(x, y, z, c, n) { for (let k = 0; k < n; k++) SPARKS.add(x, y, z, (rnd() - 0.5) * 9, rnd() * 6, (rnd() - 0.5) * 9, c[0], c[1], c[2], 1, 0.05 + rnd() * 0.04, 0.3 + rnd() * 0.3, 1.2, 9); SFX.parry(); S.shake = Math.max(S.shake, 0.35); }
+  // the wall of light takes the blow: it dims, and the third time it breaks
+  function blockHit(e) {
+    if (S.time - e.blockAt < 0.12) return; // one blow, however many edges it has
+    e.blockAt = S.time; e.shieldHp--;
+    const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
+    clash(e.x + fx * 0.5, 1.2 * e.scale, e.z + fz * 0.5, LIGHTS.shield, 12);
+    e.x -= fx * 0.3; e.z -= fz * 0.3;
+    if (e.shieldHp <= 0) { shed(e, 'shield'); e.state = 'stagger'; e.t = 0; blaze(e.x + fx * 0.5, 1.0, e.z + fz * 0.5, 6, 0.7, 5); S.kick = Math.max(S.kick, 0.6); }
+  }
+  // gone from under the blade and behind the wanderer, already swinging; it cannot do this again for a while, nor in the middle of its own blow
+  function blink(e) {
+    const c = LIGHTS.ninja, dx = P.x - e.x, dz = P.z - e.z, d = Math.hypot(dx, dz) || 1, x0 = e.x, z0 = e.z;
+    GHOSTS.add(bake(e.rig), c, 0.45);
+    e.x = P.x + dx / d * 1.7; e.z = P.z + dz / d * 1.7;
+    const r = Math.hypot(e.x, e.z); if (r > ARENA) { e.x *= ARENA / r; e.z *= ARENA / r; }
+    e.yaw = Math.atan2(P.x - e.x, P.z - e.z); e.dodge = 2.6; e.state = 'windup'; e.t = 0; e.struck = false; e.ranged = false; e.atk = 0; e.hit = 0;
+    e.rig.root.position.set(e.x, 0, e.z); e.rig.root.rotation.y = e.yaw;
+    STREAKS.add(x0, 1.0, z0, e.x, 1.0, e.z, 0.1, 0.4, 0.05, c);
+    for (let k = 0; k < 10; k++) SPARKS.add(x0, 1.0, z0, (rnd() - 0.5) * 6, rnd() * 4, (rnd() - 0.5) * 6, c[0], c[1], c[2], 1, 0.05, 0.3, 1.2, 6);
+    SFX.dash(); SFX.windup();
+  }
+  // the plates go, and what was under them can now be cut
+  function shedArmor(e) {
+    if (S.time - e.blockAt < 0.12) return;
+    e.blockAt = S.time; e.armor--;
+    shed(e, 'plate');
+    clash(e.x, 1.3 * e.scale, e.z, LIGHTS.brute, 16); SFX.thud(6);
+    e.state = 'stagger'; e.t = 0; S.kick = Math.max(S.kick, 0.6);
+  }
+  // it goes off: fire in every direction, the wanderer hurt if he is still near, and whatever stood near cut down with it
+  function boom(x, z) {
+    blaze(x, 0.6, z, 16, 1.5, 12); fireRing(x, z, 1.4, 9, 1.5, 0.7, 0); fireRing(x, z, 2.7, 14, 1.0, 0.6, 0.05);
+    for (let i = 0; i < 20; i++) { const g = rnd() * 6.28; DUST.add(x, 0.15, z, Math.cos(g) * 9, 0.5 + rnd() * 1.5, Math.sin(g) * 9, 0.3, 0.34, 0.52, 0.28, 0.6, 0.8, 2.6, -0.2); }
+    SFX.erupt(); SFX.quake(); S.shake = Math.max(S.shake, 0.8); S.flash = Math.max(S.flash, 0.5);
+    if (!P.dead && Math.hypot(P.x - x, P.z - z) < 3.0) hurt(KINDS.bomber.dmg, x, z);
+    const killed = S.kills;
+    let made = 0;
+    for (const en of enemies.slice()) {
+      if (en.dead || en.state === 'rise' || Math.hypot(en.x - x, en.z - z) > 3.0 + en.rad) continue;
+      const g = rnd() * 6.28, n = new T.Vector3(Math.cos(g) * 0.3, 1, Math.sin(g) * 0.3).normalize();
+      made += cutIdol(en, { n, d: n.x * en.x + n.y * 1.0 * Math.min(en.scale, 1.6) + n.z * en.z, u: new T.Vector3(en.x - x, 0.4, en.z - z).normalize(), pierce: true }, () => true);
+    }
+    if (made) scored(made, killed);
+  }
   function cutIdol(e, job, want) {
     const world = bake(e.rig), n = job.n;
     const res = GEO.cutSet(world, n.x, n.y, n.z, job.d, S.time, (p) => want(p.c[0], p.c[1], p.c[2], p.r), CUT);
     if (!res) return 0;
+    if (S.time - e.blockAt < 0.12 && !job.pierce) return 0; // the blow that broke its wall or stripped its armour does no more than that, however many edges it has
+    if (e.kind === 'ninja' && e.dodge <= 0 && !job.pierce && !e.dummy && (e.state === 'chase' || e.state === 'recover')) { blink(e); return 0; }
+    if (e.shieldHp > 0 && !job.pierce) { // a blow from in front lands on the wall
+      const sx = cutFrom.x - e.x, sz = cutFrom.z - e.z, sd = Math.hypot(sx, sz);
+      if (sd > 0.3 && (sx * Math.sin(e.yaw) + sz * Math.cos(e.yaw)) / sd > 0.2) { blockHit(e); return 0; }
+    }
     const pieces = res.pieces, groupOf = new Array(pieces.length);
     res.groups.forEach((g, gi) => { for (const i of g) groupOf[i] = gi; });
     let home = -1, alive = true;
     for (let i = 0; i < pieces.length; i++) if (pieces[i].tag && pieces[i].tag.chest && !pieces[i].from) home = groupOf[i];
     if (home < 0) alive = false;
     else for (let i = 0; i < pieces.length; i++) { const p = pieces[i]; if (p.tag && p.tag.core && (p.from || groupOf[i] !== home)) { alive = false; break; } }
+    if (!alive && e.armor > 0) { shedArmor(e); return 0; } // armoured: the first blow that would have felled it only strips it
     const vel = () => [e.vx, 0, e.vz], spin = [0, 0, 0];
     capSparks(pieces, job, null);
     let made = 0;
@@ -768,6 +843,10 @@
       S.slowT = Math.max(S.slowT, e.kind === 'colossus' ? 1.1 : P.slowKill);
       if (S.mode === 'play' && !S.queue.length && !enemies.some((o) => !o.dead)) S.slowT = Math.max(S.slowT, 0.55); // the last one of a wave falls slowly
       killFx(e);
+      if (e.kind === 'bomber') { // what it carried is lit: a ring shows how far it will reach
+        booms.push({ x: e.x, z: e.z, at: S.time + (e.fused ? 0.05 : 0.5) });
+        TRAILS.add({ p: [e.x, 0.08, e.z], f: [1, 0, 0], s: [0, 0, 1], a0: -Math.PI, a1: Math.PI, r0: 2.7, r1: 3.0, T: 0.02, hold: 0.4, fade: 0.15, colA: LIGHTS.bomber, colB: [0.9, 0.1, 0.02], flame: 0, gain: 1.2 });
+      }
       if (!P.dead) P.hp = Math.min(P.maxHp, P.hp + P.leech);
       gainXp(e.xp);
       if (!P.over) S.ult = Math.min(1, S.ult + e.xp * 0.03);
@@ -921,6 +1000,7 @@
   function stoke(made) { P.heat = Math.min(1, P.heat + 0.05 + made * 0.012); P.heatAt = S.real; }
   function cutAll(job, want, cx, cz, R) {
     let made = 0;
+    cutFrom.x = cx; cutFrom.z = cz;
     for (const en of enemies.slice()) if (!en.dead && Math.hypot(en.x - cx, en.z - cz) < R + 2 * en.scale) made += cutIdol(en, job, want);
     for (const b of bodies.slice()) {
       const dx = b.x - cx, dy = b.y - 1.1, dz = b.z - cz, lim = R + b.radius;
@@ -1114,7 +1194,7 @@
         const px = c[0] + (rnd() - 0.5) * 0.9, py = Math.max(0.25, c[1] + (rnd() - 0.5) * 0.9), pz = c[2] + (rnd() - 0.5) * 0.9;
         const want = (x, y, z, r) => { const dx = x - c[0], dy = y - c[1], dz = z - c[2], lim = 3.3 + r * 0.5; return dx * dx + dy * dy + dz * dz < lim * lim; };
         CUT.minPiece = 1.4e-3; // crumbs smaller than a fist are left alone, or there would be thousands
-        a.made += cutAll({ n, d: n.x * px + n.y * py + n.z * pz, u }, want, c[0], c[2], 3.3);
+        a.made += cutAll({ n, d: n.x * px + n.y * py + n.z * pz, u, pierce: true }, want, c[0], c[2], 3.3);
         CUT.minPiece = 2.5e-4;
         STREAKS.add(px - u.x * 4.4, py - u.y * 4.4, pz - u.z * 4.4, px + u.x * 4.4, py + u.y * 4.4, pz + u.z * 4.4, 0.1, 0.5, 0.045, style.trailA);
         for (const o of [-1.4, 0, 1.4]) fire(px + u.x * o, Math.max(0.05, py + u.y * o - 0.3), pz + u.z * o, 0.8, 0.5, { gain: 1.1 });
@@ -1192,7 +1272,7 @@
         let made = 0;
         for (const [ny, ns, h] of [[1, 0.2, 1.05], [0.25, 1, 1.0]]) { // one flat cut and one upright along the path: what stood on it falls in four
           const n = new T.Vector3(sx * ns, ny, sz * ns).normalize();
-          made += cutAll({ n, d: n.x * x0 + n.y * h + n.z * z0, u: f }, want, (x0 + a.x1) / 2, (z0 + a.z1) / 2, L / 2 + 1.9);
+          made += cutAll({ n, d: n.x * x0 + n.y * h + n.z * z0, u: f, pierce: true }, want, (x0 + a.x1) / 2, (z0 + a.z1) / 2, L / 2 + 1.9);
         }
         fireLine(x0, z0, a.x1, a.z1, Math.ceil(L * 1.7), 1.6, 0.8, 0.13, 0.7); // the whole path he took goes up
         for (let i = 0; i < 4; i++) SCORCH.add(lerp(x0, a.x1, (i + 0.5) / 4), lerp(z0, a.z1, (i + 0.5) / 4), L / 8 + 0.2, 0.8, 4.5, 1, a.ax, a.az);
@@ -1328,8 +1408,8 @@
       P.yaw = Math.atan2(ax, az); P.stance = 1;
       const w = { saw: true, x: P.x + ax * 1.5, z: P.z + az * 1.5, y: 1.55, ax, az, d: 0, max: 27, speed: 11, half: 1.8, top: 5.2, next: 0.4, kills: S.kills, flames: 5, tail: 0, trail: null, jobs: [], burn: 2.3 };
       const side = new T.Vector3(az, 0.05, -ax).normalize(), f = new T.Vector3(ax, 0, az);
-      w.jobs.push({ n: side, d: side.x * w.x + side.y * 1.0 + side.z * w.z, u: f }); // one cut along the track, and three flat ones at different heights
-      for (const h of [0.5, 1.15, 1.8, 2.9]) { const n = new T.Vector3(az * 0.07, 1, -ax * 0.07).normalize(); w.jobs.push({ n, d: n.x * w.x + n.y * h + n.z * w.z, u: f }); }
+      w.jobs.push({ n: side, d: side.x * w.x + side.y * 1.0 + side.z * w.z, u: f, pierce: true }); // one cut along the track, and three flat ones at different heights
+      for (const h of [0.5, 1.15, 1.8, 2.9]) { const n = new T.Vector3(az * 0.07, 1, -ax * 0.07).normalize(); w.jobs.push({ n, d: n.x * w.x + n.y * h + n.z * w.z, u: f, pierce: true }); }
       w.trail = crescent({ x: w.x, y: w.y, z: w.z }, { x: 0, y: 1, z: 0 }, f, -Math.PI, Math.PI, 1.25, 3.05, 0.12, { hold: 30, fade: 0.4, gain: 1.7, flame: 1, follow: () => [w.x, w.y, w.z] });
       waves.push(w);
       SFX.wave();
@@ -1386,7 +1466,8 @@
   // ---- waves
   function startWave(n) {
     S.wave = n; S.next = 0;
-    const count = { grunt: Math.min(2 + n, 8), imp: n >= 2 ? Math.min(2 + (n - 1) * 2, 14) : 0, thrower: n >= 3 ? Math.min(Math.floor((n - 1) / 2), 4) : 0, brute: n >= 4 ? Math.min(Math.floor((n - 2) / 2), 4) : 0 };
+    const count = { grunt: Math.min(2 + n, 8), imp: n >= 2 ? Math.min(2 + (n - 1) * 2, 14) : 0, thrower: n >= 3 ? Math.min(Math.floor((n - 1) / 2), 4) : 0, brute: n >= 4 ? Math.min(Math.floor((n - 2) / 2), 4) : 0,
+      shield: n >= 2 ? Math.min(Math.floor(n / 2), 4) : 0, bomber: n >= 3 ? Math.min(1 + Math.floor((n - 3) / 2), 5) : 0, ninja: n >= 4 ? Math.min(1 + Math.floor((n - 4) / 3), 4) : 0 };
     S.queue = [];
     for (const k in count) for (let i = 0; i < count[k]; i++) S.queue.splice(Math.floor(rnd() * (S.queue.length + 1)), 0, k);
     const giants = n % 5 === 0 ? n / 5 : 0;
