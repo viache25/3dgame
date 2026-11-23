@@ -116,6 +116,11 @@ const out = (n) => path.join(__dirname, '../out', n);
     let e = g.enemies.find((x) => !x.dead && x.kind === 'grunt' && x.state === 'chase');
     if (!e) { e = g.spawnIdol('grunt'); g.P.invul = 9; for (let i = 0; i < 80; i++) g.step(1 / 60); }
     // the idol faces away from the camera, so the line across its raised fist passes over its head, not through it
+    // and it is held where it stands until the camera has come to rest on the two of them, so the view is the same every time
+    const ex = e.x, ez = e.z, keep = [e.speed, e.range];
+    e.speed = 0; e.range = -1;
+    for (let i = 0; i < 70; i++) { e.x = ex; e.z = ez; e.yaw = Math.PI; e.state = 'chase'; g.P.x = ex; g.P.z = ez - 1.9; g.P.invul = 9; g.step(1 / 60); }
+    e.speed = keep[0]; e.range = keep[1];
     e.yaw = Math.PI; g.P.x = e.x; g.P.z = e.z - 1.9; g.P.invul = 9;
     e.state = 'windup'; e.t = 0.3; e.atk = 1; for (let i = 0; i < 2; i++) g.step(1 / 240);
     e.rig.root.updateMatrixWorld(true); g.camera.updateMatrixWorld();
@@ -216,6 +221,7 @@ const out = (n) => path.join(__dirname, '../out', n);
     g.P.up.whirl = 1; g.applyUps();
     const e = g.spawnIdol('grunt');
     for (let i = 0; i < 90; i++) { g.P.x = e.x - 2; g.P.z = e.z; g.P.invul = 9; g.step(1 / 60); }
+    g.noMouse(); // with no cursor to dash toward, he dashes the way he faces
     g.P.x = e.x - 2; g.P.z = e.z; g.P.yaw = Math.PI / 2; g.P.speed = 0; g.P.dashCd = 0; e.state = 'stagger'; e.t = 0;
     const from = g.P.x;
     g.dash();
@@ -250,10 +256,17 @@ const out = (n) => path.join(__dirname, '../out', n);
   await shot('9c-wave');
   r = await p.evaluate(() => { const g = __game; go(2.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, act: !!g.P.act }; });
   assert(r.alive === 0 && r.flying === 0 && !r.act, 'crescent: it cut all three on its way and died out: ' + JSON.stringify(r));
-  r = await p.evaluate(() => { const g = __game, es = setOut(['spin', 'iai'], [[2.4, 0], [-2.2, 0.8], [0.3, -2.5], [0.5, 2.6], [7, 7]]); const ok = g.cast(slots[0]); go(0.25); return { ok }; });
+  r = await p.evaluate(() => { const g = __game, es = setOut(['spin', 'iai'], [[2.4, 0], [-2.2, 0.8], [0.3, -2.5], [0.5, 2.6], [7, 7]]); const ok = g.cast(slots[0]); go(0.4); return { ok, fires: g.FIRES.count(), up: g.P.y, turned: g.P.act && g.P.act.spin }; });
+  assert(r.ok && r.fires > 20 && r.up > 0.1 && r.turned > 6, 'whirl: he is off the ground, turning, in a column of fire: ' + JSON.stringify(r));
   await shot('9d-spin');
-  r = await p.evaluate(() => { const g = __game; go(0.6); return { near: g.enemies.filter((e) => !e.dead && Math.hypot(e.x, e.z) < 4).length, far: g.enemies.filter((e) => !e.dead).length, act: !!g.P.act }; });
+  r = await p.evaluate(() => { const g = __game; go(0.47); const slam = g.P.act && g.P.act.pose; g.frame(); return { slam, y: g.P.y }; });
+  assert(r.slam === 'slam' && r.y === 0, 'whirl: it ends with the blade driven into the ground: ' + JSON.stringify(r));
+  await shot('9d2-spin-slam');
+  r = await p.evaluate(() => { const g = __game; go(0.4); return { near: g.enemies.filter((e) => !e.dead && Math.hypot(e.x, e.z) < 4).length, far: g.enemies.filter((e) => !e.dead).length, act: !!g.P.act }; });
   assert(r.near === 0 && r.far === 1 && !r.act, 'whirl: everything within reach, nothing beyond: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut(['spin'], []); const e = g.spawnIdol('grunt'); e.x = 6.5; e.z = 0; e.speed = 0; for (let i = 0; i < 90; i++) { e.x = 6.5; e.z = 0; g.step(1 / 60); } g.cast('spin'); go(0.5); return { x: e.x, dead: e.dead }; });
+  assert(r.x < 5.2, 'whirl: a synth standing off is drawn in toward the blade: ' + JSON.stringify(r));
+  await p.evaluate(() => { go(1); });
   r = await p.evaluate(() => { const g = __game, es = setOut(['spin', 'iai'], [[0, 3], [0.4, 5.5], [-0.5, 8]]); const ok = g.cast(slots[1]); go(0.4); return { ok, z: g.P.z, deadBefore: es.filter((e) => e.dead).length, scale: g.S.scale }; });
   assert(r.ok && r.z > 9 && r.deadBefore === 0 && r.scale < 0.1, 'strike through: past them at once, and nothing has fallen yet: ' + JSON.stringify(r));
   await shot('9e-iai');
@@ -310,45 +323,39 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game; go(4.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, bodies: g.bodies.length }; }); // each kill holds the world for a moment, so the roll takes longer than its distance alone
   assert(r.alive === 0 && r.flying === 0 && r.bodies < 800, 'saw: the whole line is in blocks: ' + JSON.stringify(r));
   // a technique is not ready again at once, and the keys reach it
-  r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(0.7); const b = g.cast(slots[0]); return { a, b, cd: g.P.cd.spin }; });
-  assert(r.a && !r.b && r.cd > 5, 'cooldown: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(1.3); const b = g.cast(slots[0]); return { a, b, cd: g.P.cd.spin, act: !!g.P.act }; });
+  assert(r.a && !r.b && !r.act && r.cd > 1.5 && r.cd < 3.5, 'cooldown: the whirl is short of ready, but not for long: ' + JSON.stringify(r));
   await p.evaluate(() => { __game.P.cd.iai = 0; });
   await p.keyboard.press('Digit1');
   assert(await p.evaluate(() => __game.P.act && __game.P.act.id === 'iai'), 'the 1 key calls the fourth technique');
+  await run(1.2);
+  await p.evaluate(() => { __game.P.cd.spin = 0; });
+  await p.keyboard.press('KeyQ');
+  assert(await p.evaluate(() => __game.P.act && __game.P.act.id === 'spin'), 'Q is the whirl');
+  await p.keyboard.down('KeyD'); r = await p.evaluate(() => __game.P.x); await run(0.5); await p.keyboard.up('KeyD');
+  assert((await p.evaluate(() => __game.P.x)) > r + 1.5, 'and he can run while he whirls');
   await run(1.2);
   await p.evaluate(() => { __game.S.ult = 1; });
   await p.keyboard.press('KeyR');
   assert(await p.evaluate(() => __game.S.ult === 0), 'and R spends the ultimate');
   await run(1.2);
-  // the led blade: the button is down and the mouse is drawn slowly through three synths; he flies after his blade and the stroke cuts as it goes
-  r = await p.evaluate(() => { const g = __game; setOut([], [[3.2, 0], [6.4, 0], [9.6, 0]]); return { kills: g.S.kills, x: g.P.x }; });
-  const onScreen = (x, z) => p.evaluate(([x, z]) => { const g = __game; g.camera.updateMatrixWorld(); const v = new THREE.Vector3(x, 1.0, z).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; }, [x, z]);
-  let pt = await onScreen(1.0, -0.5);
-  await p.mouse.move(pt[0], pt[1]); await p.mouse.down();
-  let flew = 0, spun = false;
-  for (let k = 1; k <= 26; k++) {
-    pt = await onScreen(1.0 + k * 0.4, k % 2 ? 0.55 : -0.55);
-    await p.mouse.move(pt[0], pt[1]); await run(0.05);
-    const now = await p.evaluate(() => ({ fly: __game.LIVE.fly, spin: __game.LIVE.spin > 0 }));
-    flew = Math.max(flew, now.fly); spun = spun || now.spin;
-    if (k === 12) await shot('9l-led-blade');
-  }
-  st = await p.evaluate(() => ({ kills: __game.S.kills, x: __game.P.x, live: __game.LIVE.on, heat: __game.P.heat, tip: __game.LIVE.tip.x }));
-  await p.mouse.up();
-  assert(st.live && st.kills >= r.kills + 3 && st.x > r.x + 6 && flew > 5, 'led by the blade he flew through all three: ' + JSON.stringify(st) + ' flew ' + flew);
-  assert(spun && st.heat < 1, 'a stroke that doubles back spins him, and cutting spends the flame: ' + JSON.stringify(st));
-  // the flame: a blade with none left goes out and cuts nothing until it comes back
+  // the mouse draws a cut; it does not carry the wanderer about. A stroke across a synth beside him cuts it and he stays where he stood
+  r = await p.evaluate(() => { const g = __game, es = setOut([], [[1.7, 0.3]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(es[0].x, 1.1 * es[0].scale, es[0].z).project(g.camera); return { x: (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y: (0.5 - v.y * 0.5) * g.canvas.clientHeight, kills: g.S.kills }; });
+  await p.mouse.move(r.x - 110, r.y - 30); await p.mouse.down(); await p.mouse.move(r.x, r.y, { steps: 3 }); await p.mouse.move(r.x + 110, r.y + 35, { steps: 3 }); await p.mouse.up(); await run(0.3);
+  await shot('9l-stroke');
+  st = await p.evaluate(() => ({ kills: __game.S.kills, moved: Math.hypot(__game.P.x, __game.P.z), fires: __game.FIRES.count() }));
+  assert(st.kills === r.kills + 1 && st.moved < 1.2 && st.fires > 3, 'a stroke cuts along its line, sets what it cut alight, and he stays put: ' + JSON.stringify(st));
+  // the flame: cutting stokes it, and left alone it dies back down; it never locks the blade
   r = await p.evaluate(() => {
     const g = __game, es = setOut([], [[1.7, 0.3], [-1.7, 0.3]]);
     const cut = (e) => { g.camera.updateMatrixWorld(); const v = new THREE.Vector3(e.x, 1.1 * e.scale, e.z).project(g.camera), x = (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y = (0.5 - v.y * 0.5) * g.canvas.clientHeight; g.slash(x - 110, y - 30, x + 110, y + 40); go(0.3); };
-    g.P.heat = 0.03;
-    cut(es[0]); const out = g.P.cool > 0, first = es[0].dead;
-    cut(es[1]); const second = es[1].dead;
-    go(2.2); const back = g.P.heat;
-    cut(es[1]);
-    return { first, out, second, back, later: es[1].dead };
+    g.P.heat = 0;
+    cut(es[0]); const one = g.P.heat, first = es[0].dead;
+    cut(es[1]); const two = g.P.heat, second = es[1].dead;
+    go(9); const rest = g.P.heat;
+    return { first, second, one, two, rest };
   });
-  assert(r.first && r.out && !r.second && r.back > 0.4 && r.later, 'the flame runs out, the blade is dead for a moment, then it burns again: ' + JSON.stringify(r));
+  assert(r.first && r.second && r.one > 0.04 && r.two > r.one && r.rest < 0.02, 'each cut stokes the flame, and at rest it dies down: ' + JSON.stringify(r));
   // the combo: five blows, and the third, fourth and fifth are a turn, two turns in the air, and a blow down
   r = await p.evaluate(() => { const g = __game; setOut([], []); const seen = []; for (let i = 0; i < 5; i++) { g.P.heat = 1; g.tapSlash(g.canvas.clientWidth * 0.55, g.canvas.clientHeight * 0.4); for (let k = 0; k < 20 && !g.P.sw; k++) g.step(1 / 60); /* he may have to leap to the spot first */ seen.push(g.P.sw ? [g.P.sw.turns, g.P.sw.hop > 0] : null); go(0.65); /* long enough for the blow to be over before the next */ } return seen; });
   assert.deepStrictEqual(r, [[0, false], [0, false], [1, false], [2, true], [0, false]], 'the five blows of the combo: ' + JSON.stringify(r));

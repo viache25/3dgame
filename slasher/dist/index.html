@@ -34,7 +34,7 @@ body { background: var(--night); color: var(--ink); font-family: var(--ui); over
 #focus { background: linear-gradient(90deg, var(--blade), var(--cool)); }
 #xp { background: var(--gold); }
 #heat { background: var(--style); transition: transform 0.08s linear; }
-#heat.out { background: var(--dim); opacity: 0.5; }
+#heat.full { box-shadow: 0 0 10px var(--style); filter: brightness(1.35); }
 .bar b { color: var(--ink); }
 .track.thin { height: 6px; }
 .stats { display: flex; align-items: flex-start; gap: 18px; text-align: right; }
@@ -167,7 +167,7 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     </div>
   </div>
   <div id="banner" class="gutter"></div>
-  <p id="hint" class="gutter gone"><span class="for-keys">Зажми левую кнопку и веди: клинок идёт за курсором, ты летишь следом и режешь по пути. Следи за пламенем. Приёмы на Q E T 1 2 3 4, ульта на R.</span><span class="for-touch">Проведи пальцем по врагу: разрез пройдёт по этой линии. Левый палец ведёт героя.</span></p>
+  <p id="hint" class="gutter gone"><span class="for-keys">Проведи мышью с зажатой левой кнопкой: разрез пройдёт по этой линии. Q — огненный вихрь. Чем больше режешь, тем выше пламя клинка.</span><span class="for-touch">Проведи пальцем по врагу: разрез пройдёт по этой линии. Левый палец ведёт героя.</span></p>
   <div id="stick" hidden><div id="knob"></div></div>
   <div class="abils gutter" id="abils" hidden></div>
   <div class="pads gutter">
@@ -213,22 +213,20 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
   <div id="controls" class="sheet menu gutter" hidden>
     <h2>Управление</h2>
     <dl class="keymap">
-      <dt><kbd>ЛКМ</kbd> вести</dt><dd>клинок идёт за курсором, ты летишь за клинком и режешь по пути</dd>
-      <dt><kbd>ЛКМ</kbd> туда-сюда</dt><dd>разворот росчерка закручивает тебя в круговой срез</dd>
-      <dt><kbd>ЛКМ</kbd> щёлкать</dt><dd>комбо из пяти ударов, последние три с вращением</dd>
+      <dt><kbd>ЛКМ</kbd> провести</dt><dd>разрез ровно по линии, которую ты провёл</dd>
+      <dt><kbd>ЛКМ</kbd> щёлкать или держать</dt><dd>комбо из пяти ударов, последние три с вращением</dd>
       <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>бег</dd>
       <dt><kbd>Пробел</kbd></dt><dd>рывок; стоя на месте — к курсору</dd>
       <dt><kbd>Shift</kbd> или <kbd>ПКМ</kbd></dt><dd>замедлить время, пока держишь</dd>
-      <dt><kbd>Q</kbd><kbd>E</kbd><kbd>T</kbd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></dt><dd>приёмы, бьют туда, где курсор</dd>
+      <dt><kbd>Q</kbd></dt><dd>вихрь: огненный смерч вокруг тебя, во время него можно бежать</dd>
+      <dt><kbd>E</kbd><kbd>T</kbd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></dt><dd>остальные приёмы, бьют туда, где курсор</dd>
       <dt><kbd>R</kbd></dt><dd>ульта, когда заряд полон</dd>
       <dt><kbd>Колесо</kbd></dt><dd>камера ближе и дальше</dd>
       <dt><kbd>Tab</kbd></dt><dd>арсенал</dd>
       <dt><kbd>F</kbd></dt><dd>на весь экран</dd>
       <dt><kbd>Esc</kbd></dt><dd>пауза и назад</dd>
     </dl>
-    <p class="foot">Каждый срез тратит пламя клинка. Если оно кончилось, клинок гаснет на секунду и ничего не режет; в покое пламя быстро возвращается.</p>
-    <dl hidden>
-    </dl>
+    <p class="foot">Каждый срез раздувает пламя клинка: огня больше, клинок достаёт чуть дальше. Без боя пламя понемногу опадает.</p>
     <nav class="list"><button class="item" data-back type="button">Назад</button></nav>
   </div>
   <div id="dead" class="sheet menu gutter" hidden>

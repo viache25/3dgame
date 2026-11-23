@@ -5,11 +5,12 @@ const PAL = [
   0x3d4353, 0x79849c, 0x0c0e15, 0xff2d55, // 0 armour, 1 plates, 2 inside of a synth, 3 red light
   0x5a6072, 0x191b23, 0x3df2ff, 0x082a30, // 4 concrete, 5 inside of concrete, 6 a tube of light, 7 inside of a tube
   0x3a4252, 0xffd23f, 0x13151b, 0x2a2e48, // 8 drum, 9 hazard yellow, 10 inside of a drum, 11 the wanderer's coat
-  0xff2bd6, 0x4a5066, 0xc9a48c, 0xe4edf7, // 12 magenta, 13 hat, 14 skin, 15 steel
+  0xff2bd6, 0x4a5066, 0xc9a48c, 0xe4edf7, // 12 magenta, 13 grey plate, 14 skin, 15 steel
   0x16181f, 0x4a3a5c, 0xd9a441, 0xd9dde6, // 16 dark wraps, 17 heavy armour, 18 brass, 19 white plate
   0x120f18, 0xffe14d, 0x6a2f50,           // 20 inside of heavy armour, 21 yellow light, 22 the colossus
   0x3df2ff, 0xff2bd6, 0xff8a1e, 0xffc46b, // 23 cyan light, 24 magenta light, 25 orange light, 26 warm window
   0x0d0f18, 0x5dff8f, 0x1b1d26,           // 27 a tower at night, 28 green light, 29 asphalt
+  0x14151e, 0x30354a, 0x1c1e2c, 0x0b0b10, // 30 the wanderer's coat, 31 his armour, 32 his hat, 33 what his fire is set in
 ].map(lin);
 // uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
 const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };

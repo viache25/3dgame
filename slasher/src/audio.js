@@ -1,6 +1,6 @@
 // Every sound is made on the spot from noise and sine waves; there are no recordings.
 const SFX = (function () {
-  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0, bed = null, liveF = null, liveG = null;
+  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0, bed = null;
   function start() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -28,11 +28,6 @@ const SFX = (function () {
       const s = ac.createBufferSource(), f = ac.createBiquadFilter(), tr = ac.createGain(), m = ac.createBufferSource(), md = ac.createGain();
       s.buffer = noise; s.loop = true; s.playbackRate.value = 0.5; f.type = 'lowpass'; f.frequency.value = 620; f.Q.value = 0.8;
       m.buffer = noise; m.loop = true; m.playbackRate.value = 0.003; md.gain.value = 0.6; tr.gain.value = 1; m.connect(md); md.connect(tr.gain);
-      // and the blade led by the hand: one voice that is silent while it is still and climbs in loudness and pitch with its speed
-      const ls = ac.createBufferSource(); ls.buffer = noise; ls.loop = true;
-      liveF = ac.createBiquadFilter(); liveF.type = 'bandpass'; liveF.Q.value = 1.5; liveF.frequency.value = 600;
-      liveG = ac.createGain(); liveG.gain.value = 0;
-      ls.connect(liveF); liveF.connect(liveG); liveG.connect(fx); ls.start();
       bed = ac.createGain(); bed.gain.value = 0;
       s.connect(f); f.connect(tr); tr.connect(bed); bed.connect(fx); s.start(); m.start();
     }
@@ -114,8 +109,7 @@ const SFX = (function () {
     volume(v) { fxVol = v; if (fx) fx.gain.value = v; },
     musicVolume(v) { musVol = v; if (mus) mus.gain.value = v; },
     music(h) { heat = h; },
-    live(v) { if (liveG) { liveG.gain.setTargetAtTime(Math.min(0.42, v * 0.02), ac.currentTime, 0.04); liveF.frequency.setTargetAtTime(480 + Math.min(v, 42) * 80, ac.currentTime, 0.05); } }, // v: how fast the tip of the blade moves, metres a second
-    blade(k) { if (bed) bed.gain.setTargetAtTime(k, ac.currentTime, 0.06); }, // how loud the fire on the blade is just now // 0: quiet, between fights; 1: a fight is on
+    blade(k) { if (bed) bed.gain.setTargetAtTime(k, ac.currentTime, 0.06); }, // how loud the fire on the blade is just now
     slow(k) { if (ac) lp.frequency.setTargetAtTime(k < 0.5 ? 1100 : 18000, now(), 0.08); },
     // a swing: the blade through the air, its edge, the steel singing a little, and under that the fire it carries
     swing(big) {
@@ -149,6 +143,10 @@ const SFX = (function () {
     flurry(i) { if (ok()) { const k = 1 + i * 0.05; roar(0.26, 0.55, 500 * k, 2600 * k, 0); tone(2400 * k, 0.12, 0.05, 'sine'); burst(5200 + i * 200, 0.9, 'highpass', 0.08, 0.1); } },
     // the blade goes home: a click, and then everything it passed through lets go
     sheath() { if (ok()) { tone(1900, 0.05, 0.3, 'square', 900); burst(2600, 2.0, 'bandpass', 0.05, 0.3); tone(70, 0.5, 0.5, 'sine', 30, 0.04); burst(500, 0.7, 'lowpass', 0.45, 0.45, 80, 0.04); } },
+    // the whirl: the blade going round and round, each pass a little higher, over one long breath of fire
+    vortex() { if (ok()) { roar(1.0, 0.8, 220, 2400, 0); for (let i = 0; i < 5; i++) whoosh(0.2, 0.5, 500 + i * 110, 2800 + i * 450, i * 0.155); tone(55, 0.9, 0.3, 'sine', 110); } },
+    // fire let go all at once
+    erupt() { if (ok()) { roar(0.9, 1.0, 160, 2600, 0); roar(0.5, 0.6, 700, 5200, 0.02); burst(300, 0.7, 'lowpass', 0.5, 0.6, 50); tone(60, 0.6, 0.55, 'sine', 28); } },
     wave() { if (ok()) { roar(1.1, 0.95, 200, 2200, 0); roar(0.8, 0.5, 900, 4200, 0.04); tone(70, 0.7, 0.4, 'sine', 34); } },
     shot() { if (ok()) { tone(1500, 0.14, 0.14, 'sawtooth', 300); burst(3000, 1.2, 'bandpass', 0.08, 0.14, 900); } },
     // steel meets steel and gives nothing

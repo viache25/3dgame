@@ -101,27 +101,81 @@ const MODELS = (function () {
   }
 
   // The wanderer. Not meant to be cut, but built the same way so that a lost fight leaves a heap. His trim glows in the colour of his blade.
+  // Layered shoulder guards, bracers and greaves over a dark coat; a scabbard at the left hip; a wide hat; and cloth that streams behind him:
+  // two tails of a scarf from the neck and two tails of the coat from the belt, each on bones of its own.
   function hero() {
     const o = (col, extra) => Object.assign({ col, inner: 16, glow: 0.3 }, extra || {});
-    const arm = (s) => [
-      { name: 'arm' + s, parent: 'chest', at: [(s === 'L' ? 1 : -1) * 0.2, 0.33, 0], pieces: [limb(0.27, 0.06, 0.05, o(11, { sides: 6 })), P(B(0.13, 0.06, 0.15, o(13, { taper: 0.75 })), 0, 0.0, 0)] },
-      { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.27, 0], pieces: [limb(0.25, 0.048, 0.04, o(16, { sides: 6 })), trim(P(L([[0.052, 0], [0.052, 0.02]], o(15, { sides: 6 })), 0, -0.2, 0), 0.5), P(B(0.07, 0.08, 0.07, o(14)), 0, -0.32, 0)] },
-    ];
-    const leg = (s) => [
-      { name: 'thigh' + s, parent: 'hips', at: [(s === 'L' ? 1 : -1) * 0.09, -0.06, 0], pieces: [limb(0.38, 0.1, 0.135, o(11, { sides: 6 }))] },
-      { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.38, 0], pieces: [limb(0.3, 0.055, 0.045, o(16, { sides: 6 })), P(B(0.09, 0.06, 0.21, o(16)), 0, -0.36, 0.04)] },
-    ];
+    const arm = (s) => {
+      const sx = s === 'L' ? 1 : -1, big = s === 'L' ? 1.18 : 1; // the left shoulder, the one turned to the enemy, carries the bigger guard
+      return [
+        { name: 'arm' + s, parent: 'chest', at: [sx * 0.21, 0.34, 0], pieces: [
+          limb(0.27, 0.062, 0.05, o(30, { sides: 6 })),
+          P(B(0.17 * big, 0.05, 0.2 * big, o(31, { taper: 0.8 })), sx * 0.02, 0.0, 0, 0, 0, -sx * 0.25),
+          P(B(0.165 * big, 0.045, 0.19 * big, o(31, { taper: 0.86 })), sx * 0.05, -0.058, 0, 0, 0, -sx * 0.42),
+          trim(P(B(0.17 * big, 0.012, 0.195 * big, o(33)), sx * 0.052, -0.068, 0, 0, 0, -sx * 0.42), 0.6),
+          P(B(0.15 * big, 0.04, 0.17 * big, o(31, { taper: 0.88 })), sx * 0.075, -0.115, 0, 0, 0, -sx * 0.58),
+        ] },
+        { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.27, 0], pieces: [
+          limb(0.25, 0.048, 0.04, o(16, { sides: 6 })),
+          P(L([[0.05, 0], [0.06, 0.15]], o(31, { sides: 6 })), 0, -0.23, 0),
+          trim(P(L([[0.063, 0], [0.063, 0.018]], o(33, { sides: 6 })), 0, -0.1, 0), 0.6),
+          P(B(0.07, 0.08, 0.07, o(16)), 0, -0.32, 0),
+        ] },
+      ];
+    };
+    const leg = (s) => {
+      const sx = s === 'L' ? 1 : -1;
+      return [
+        { name: 'thigh' + s, parent: 'hips', at: [sx * 0.09, -0.06, 0], pieces: [
+          limb(0.38, 0.1, 0.135, o(30, { sides: 6 })),
+          P(B(0.035, 0.26, 0.2, o(31, { taper: 0.85 })), sx * 0.135, -0.31, 0, 0, 0, sx * 0.1),
+          trim(P(B(0.04, 0.014, 0.205, o(33)), sx * 0.137, -0.315, 0, 0, 0, sx * 0.1), 0.5),
+        ] },
+        { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.38, 0], pieces: [
+          limb(0.3, 0.055, 0.045, o(16, { sides: 6 })),
+          P(B(0.088, 0.21, 0.04, o(31, { taper: 0.8 })), 0, -0.27, 0.042),
+          trim(P(B(0.092, 0.012, 0.045, o(33)), 0, -0.07, 0.042), 0.5),
+          P(B(0.09, 0.06, 0.22, o(16)), 0, -0.36, 0.04),
+        ] },
+      ];
+    };
+    // the scabbard: along -z and a little down from the left hip, with two brass rings and a lit mouth
+    const saya = (piece) => P(piece, 0.19, 0.03, 0.15, -1.9, 0, 0);
+    // one length of cloth hanging from its bone, lit along its lower edge
+    const cloth = (w, len, taper, heat) => [P(B(w, len, 0.022, o(30, { taper: 1 / taper })), 0, -len, 0), trim(P(B(w * taper, 0.03, 0.026, o(33)), 0, -len, 0), heat)];
+    const band = (w, len, taper, heat) => [trim(P(B(w * taper, len, 0.024, o(33, { taper: 1 / taper })), 0, -len, 0), heat)];
     return [
-      { name: 'hips', parent: null, at: [0, 0.8, 0], pieces: [P(B(0.29, 0.17, 0.2, o(11)), 0, -0.09, 0), trim(P(L([[0.165, 0], [0.165, 0.06]], o(15, { sides: 8, sz: 0.76 })), 0, 0.05, 0), 0.45)] },
-      { name: 'chest', parent: 'hips', at: [0, 0.1, 0], pieces: [L([[0.13, 0], [0.195, 0.27], [0.165, 0.38]], o(11, { sides: 6, sz: 0.7 }))] },
+      { name: 'hips', parent: null, at: [0, 0.8, 0], pieces: [
+        P(B(0.29, 0.17, 0.2, o(30)), 0, -0.09, 0),
+        trim(P(L([[0.165, 0], [0.165, 0.06]], o(33, { sides: 8, sz: 0.76 })), 0, 0.05, 0), 0.45),
+        P(B(0.1, 0.085, 0.05, o(18, { taper: 0.7 })), 0, 0.035, 0.115),
+        saya(B(0.042, 0.94, 0.058, o(16, { taper: 0.75 }))),
+        saya(P(B(0.054, 0.05, 0.07, o(18)), 0, 0.0, 0)),
+        saya(P(B(0.05, 0.03, 0.066, o(18)), 0, 0.3, 0)),
+        trim(saya(P(B(0.048, 0.016, 0.064, o(33)), 0, 0.055, 0)), 0.7),
+      ] },
+      { name: 'chest', parent: 'hips', at: [0, 0.1, 0], pieces: [
+        L([[0.13, 0], [0.195, 0.27], [0.165, 0.38]], o(30, { sides: 6, sz: 0.7 })),
+        P(B(0.25, 0.2, 0.05, o(31, { taper: 0.74 })), 0, 0.13, 0.105),          // the breastplate
+        trim(P(B(0.03, 0.12, 0.02, o(33, { taper: 0.4 })), 0, 0.17, 0.135), 1.0), // and the ember set in it
+        P(B(0.22, 0.24, 0.05, o(31, { taper: 0.8 })), 0, 0.1, -0.135),
+        P(L([[0.1, 0], [0.085, 0.075]], o(16, { sides: 6 })), 0, 0.345, 0),
+      ] },
       { name: 'head', parent: 'chest', at: [0, 0.39, 0], pieces: [
         L([[0.05, -0.03], [0.05, 0.05]], o(14, { sides: 6 })),
         L([[0.07, 0.02], [0.1, 0.08], [0.1, 0.17], [0.07, 0.23]], o(14, { sides: 6 })),
-        trim(P(B(0.15, 0.022, 0.03, o(15)), 0, 0.125, 0.085), 0.9),
-        P(L([[0.37, 0], [0.04, 0.17]], o(13, { sides: 11 })), 0, 0.165, 0),
-        trim(P(L([[0.378, 0], [0.378, 0.012]], o(15, { sides: 11 })), 0, 0.158, 0), 0.38),
+        P(B(0.14, 0.085, 0.05, o(16, { taper: 1.15 })), 0, 0.02, 0.07),          // a mask over the lower face
+        trim(P(B(0.16, 0.024, 0.03, o(33)), 0, 0.122, 0.086), 1.3),               // the eyes: one slit of fire
+        P(L([[0.4, 0], [0.05, 0.18]], o(32, { sides: 11 })), 0, 0.165, 0),
+        trim(P(L([[0.408, 0], [0.408, 0.014]], o(33, { sides: 11 })), 0, 0.157, 0), 0.45),
+        P(L([[0.062, 0], [0.04, 0.05]], o(18, { sides: 6 })), 0, 0.335, 0),
       ] },
-      { name: 'scarf', parent: 'chest', at: [0, 0.35, -0.1], pieces: [trim(P(B(0.11, 0.5, 0.025, o(15, { taper: 0.7 })), 0, -0.5, 0), 0.5)] },
+      { name: 'scarf', parent: 'chest', at: [-0.045, 0.36, -0.1], pieces: band(0.13, 0.34, 0.9, 0.75) },
+      { name: 'scarf2', parent: 'scarf', at: [0, -0.34, 0], pieces: band(0.117, 0.4, 0.5, 0.75) },
+      { name: 'band', parent: 'chest', at: [0.05, 0.36, -0.1], pieces: band(0.1, 0.27, 0.9, 0.6) },
+      { name: 'band2', parent: 'band', at: [0, -0.27, 0], pieces: band(0.09, 0.3, 0.5, 0.6) },
+      { name: 'tailL', parent: 'hips', at: [0.085, -0.02, -0.105], pieces: cloth(0.15, 0.52, 1.3, 0.5) },
+      { name: 'tailR', parent: 'hips', at: [-0.085, -0.02, -0.105], pieces: cloth(0.15, 0.52, 1.3, 0.5) },
       ...arm('L'), ...arm('R'), ...leg('L'), ...leg('R'),
     ];
   }
@@ -130,9 +184,11 @@ const MODELS = (function () {
   function katana() {
     const g = new T.Group();
     g.add(partMesh([
-      P(L([[0.019, -0.14], [0.019, 0.13]], { sides: 6, col: 16 }), 0, 0, 0),
-      P(L([[0.055, 0], [0.055, 0.016]], { sides: 8, col: 18, sz: 0.8 }), 0, 0.13, 0),
-      glowing(P(B(0.014, 1.02, 0.042, { col: 15, taper: 0.5, taperZ: 0.55 }), 0, 0.146, 0), 0.8, GEO.BLADE),
+      P(L([[0.021, -0.16], [0.019, 0.13]], { sides: 6, col: 16 }), 0, 0, 0),
+      P(L([[0.026, 0], [0.026, 0.024]], { sides: 6, col: 18 }), 0, -0.175, 0),
+      P(L([[0.062, 0], [0.062, 0.016]], { sides: 8, col: 18, sz: 0.8 }), 0, 0.13, 0),
+      P(B(0.02, 0.05, 0.046, { col: 18 }), 0, 0.146, 0),
+      glowing(P(B(0.014, 1.02, 0.044, { col: 15, taper: 0.5, taperZ: 0.5 }), 0, 0.146, 0), 1.25, GEO.BLADE),
     ]));
     return g;
   }
