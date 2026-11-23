@@ -247,8 +247,8 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 3], [0.9, 3.6], [-0.8, 3.4]]), parts = g.S.parts; const ok = g.cast(slots[0]); go(0.45); return { ok, hidden: !g.P.rig.root.visible, scale: g.S.scale, mid: es.filter((e) => e.dead).length, parts: g.S.parts - parts, bodies: g.bodies.length }; });
   assert(r.ok && r.hidden && r.scale < 0.1, 'thousand cuts: the wanderer is gone and the world stands still: ' + JSON.stringify(r));
   await shot('9a-storm');
-  r = await p.evaluate(() => { const g = __game; go(1.4); return { act: !!g.P.act, shown: g.P.rig.root.visible, scale: g.S.scale, alive: g.enemies.filter((e) => !e.dead).length, bodies: g.bodies.length, z: g.P.z, cd: g.P.cd.storm }; });
-  assert(!r.act && r.shown && r.alive === 0 && r.z > 4 && r.cd > 10, 'thousand cuts: all three in pieces, the wanderer out the far side: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; go(1.4); return { act: !!g.P.act, shown: g.P.rig.root.visible, scale: g.S.scale, alive: g.enemies.filter((e) => !e.dead).length, bodies: g.bodies.length, z: g.P.z, cd: g.P.cd.storm, cool: g.COOL }; });
+  assert(!r.act && r.shown && r.alive === 0 && r.z > 4 && (r.cool ? r.cd > 10 : r.cd === 0), 'thousand cuts: all three in pieces, the wanderer out the far side: ' + JSON.stringify(r));
   assert(r.bodies < 700, 'the rubble is kept in bounds: ' + r.bodies);
   await shot('9b-storm-after');
   r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 5], [0.6, 9], [-0.7, 13]]); const ok = g.cast(slots[1]); go(0.3); const flying = g.waves.length; return { ok, flying, first: es[0].dead }; });
@@ -323,8 +323,9 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game; go(4.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, bodies: g.bodies.length }; }); // each kill holds the world for a moment, so the roll takes longer than its distance alone
   assert(r.alive === 0 && r.flying === 0 && r.bodies < 800, 'saw: the whole line is in blocks: ' + JSON.stringify(r));
   // a technique is not ready again at once, and the keys reach it
-  r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(1.3); const b = g.cast(slots[0]); return { a, b, cd: g.P.cd.spin, act: !!g.P.act }; });
-  assert(r.a && !r.b && !r.act && r.cd > 1.5 && r.cd < 3.5, 'cooldown: the whirl is short of ready, but not for long: ' + JSON.stringify(r));
+  // with cooldowns on, the whirl is short of ready for a couple of seconds; with them off, it is ready the moment the last one ends
+  r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(0.5); const during = g.cast(slots[0]); go(0.8); const b = g.cast(slots[0]), out = { a, during, b, cd: g.P.cd.spin, cool: g.COOL }; go(1.3); return out; });
+  assert(r.a && !r.during && (r.cool ? !r.b && r.cd > 1.5 && r.cd < 3.5 : r.b && r.cd === 0), 'cooldown: ' + JSON.stringify(r));
   await p.evaluate(() => { __game.P.cd.iai = 0; });
   await p.keyboard.press('Digit1');
   assert(await p.evaluate(() => __game.P.act && __game.P.act.id === 'iai'), 'the 1 key calls the fourth technique');

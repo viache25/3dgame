@@ -2681,6 +2681,7 @@ const SFX = (function () {
     fan: { name: 'Веер дисков', short: 'Веер', text: 'Три диска света расходятся веером и режут всё на пути', cd: 5 },
     leap: { name: 'Удар с неба', short: 'Прыжок', text: 'Прыжок к цели и удар сверху: звезда срезов во все стороны', cd: 8 },
   };
+  const COOL = false; // cooldowns are switched off for now: a technique is ready again as soon as the last one is over. true brings them back
   const ABIL_IDS = Object.keys(ABIL), waves = [], mouse = { x: 0, y: 0, seen: false };
   for (const id of ABIL_IDS) P.cd[id] = 0;
   // where a technique is pointed: at the mouse, or with fingers at the nearest idol, or else straight ahead
@@ -2722,7 +2723,7 @@ const SFX = (function () {
     const [ax, az] = aimDir();
     P.yaw = Math.atan2(ax, az); P.lunge = null; P.sw = null; P.dash = 0; P.queue = null; P.kx = P.kz = 0;
     const a = P.act = { id, t: 0, ax, az, x0: P.x, z0: P.z, made: 0, kills: S.kills, hidden: false, pose: null, slow: null, step: 0 };
-    P.cd[id] = ABIL[id].cd; P.invul = Math.max(P.invul, 1.5); P.stance = 1; P.front = 1;
+    P.cd[id] = COOL ? ABIL[id].cd : 0; P.invul = Math.max(P.invul, 1.5); P.stance = 1; P.front = 1;
     if (id === 'storm') {
       // the middle of it: the nearest idol in front, or a spot a few steps ahead
       const cx = P.x + ax * 2.6, cz = P.z + az * 2.6;
@@ -3296,7 +3297,7 @@ const SFX = (function () {
   function drawArsenal() {
     const fill = (box, items, cur, pick, about, idle) => {
       box.textContent = '';
-      const say = (it) => { $(about).textContent = it ? it.text + (it.cd ? '. Перезарядка ' + String(it.cd).replace('.', ',') + ' с.' : '.') : idle; };
+      const say = (it) => { $(about).textContent = it ? it.text + (it.cd && COOL ? '. Перезарядка ' + String(it.cd).replace('.', ',') + ' с.' : '.') : idle; };
       say(items.find((x) => x.id === cur));
       for (const it of items) {
         const b = document.createElement('button'), nm = document.createElement('b');
@@ -3586,7 +3587,7 @@ const SFX = (function () {
   buildProps(); resetUps(); newHero(); applyLoad(false); applyOpt(false); bestLine(); show('title');
   P.rig.root.visible = true;
   resize();
-  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, FIRES, SWEEP, show, pause, toTitle, OPT, applyOpt, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
+  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, FIRES, SWEEP, COOL, show, pause, toTitle, OPT, applyOpt, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();
 
