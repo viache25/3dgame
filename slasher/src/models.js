@@ -4,7 +4,7 @@ const MODELS = (function () {
   const L = GEO.lathe, B = GEO.box, P = GEO.place;
   // a limb hanging from the joint: r0 thick at the joint, r1 at the far end
   const limb = (len, r0, r1, o) => P(L([[r1, 0], [r0, len]], o), 0, -len, 0);
-  const glowing = (piece, heat) => { for (const f of piece.faces) { f.cap = GEO.PERM; f.heat = heat; } return piece; };
+  const glowing = (piece, heat, how) => { for (const f of piece.faces) { f.cap = how || GEO.PERM; f.heat = heat; } return piece; };
 
   function makeRig(def) {
     const root = new T.Group(), bones = {}, list = [];
@@ -105,7 +105,7 @@ const MODELS = (function () {
     g.add(partMesh([
       P(L([[0.019, -0.14], [0.019, 0.13]], { sides: 6, col: 16 }), 0, 0, 0),
       P(L([[0.055, 0], [0.055, 0.016]], { sides: 8, col: 18, sz: 0.8 }), 0, 0.13, 0),
-      glowing(P(B(0.014, 1.02, 0.042, { col: 15, taper: 0.5, taperZ: 0.55 }), 0, 0.146, 0), 0.55),
+      glowing(P(B(0.014, 1.02, 0.042, { col: 15, taper: 0.5, taperZ: 0.55 }), 0, 0.146, 0), 0.7, GEO.BLADE),
     ]));
     return g;
   }

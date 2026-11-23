@@ -5,7 +5,7 @@
   const canvas = $('gl'), ink = $('ink'), stage = $('stage');
   let renderer;
   try { renderer = new T.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' }); } catch (e) { $('fail').hidden = false; return; }
-  const TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches, CALM_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (TOUCH) document.body.classList.add('touch');
   const PR = Math.min(window.devicePixelRatio || 1, TOUCH ? 1.5 : 2);
   renderer.setPixelRatio(PR);
@@ -26,9 +26,9 @@
   const bloom = new T.UnrealBloomPass(new T.Vector2(4, 4), 0.62, 0.55, 1.0);
   composer.addPass(bloom);
   const grade = new T.ShaderPass({
-    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.0 }, hurt: { value: 0 }, calm: { value: 0 } },
+    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.0 }, hurt: { value: 0 }, calm: { value: 0 }, flash: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform sampler2D tDiffuse; uniform float exposure, hurt, calm; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float exposure, hurt, calm, flash; varying vec2 vUv;
       vec3 fit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
       vec3 aces(vec3 c){
         c = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777) * (c * exposure / 0.6);
@@ -43,19 +43,43 @@
         c = mix(c, mix(vec3(grey), c, 0.78) * vec3(0.93, 0.98, 1.1), calm * 0.8);   // slowed time: colder, quieter
         c *= 1.0 - (0.42 + 0.3 * calm) * edge;
         c = mix(c, vec3(0.75, 0.04, 0.03), hurt * edge * 0.85);
+        c = mix(c, vec3(dot(c, vec3(0.34, 0.5, 0.16))) * 1.7 + 0.1, flash * 0.55);   // the instant a technique lands: one bleached frame
         c = pow(c, vec3(1.0 / 2.2));
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
   composer.addPass(grade);
 
-  const SPARKS = makeDots(scene, 900, true), DUST = makeDots(scene, 260, false), TRAILS = makeTrails(scene, 8);
+  const SPARKS = makeDots(scene, 1100, true), DUST = makeDots(scene, 260, false), TRAILS = makeTrails(scene, 14), STREAKS = makeStreaks(scene, 48), GHOSTS = makeGhosts(scene);
+
+  // ---- the look of the blade: what it leaves in the air and on whatever it opens
+  const STYLES = [
+    { id: 'ember', name: 'Жар', text: 'Раскалённая сталь, срезы тлеют оранжевым', css: '#ff8a3c', hotA: [1.0, 0.45, 0.1], hotB: [1.0, 0.1, 0.01], trailA: [2.0, 0.7, 0.14], trailB: [0.8, 0.14, 0.02], spark: [2.2, 0.8, 0.12], ghost: [1.0, 0.4, 0.1], flame: 0 },
+    { id: 'violet', name: 'Лиловое пламя', text: 'Клинок горит, срезы долго полыхают фиолетовым', css: '#b46cff', hotA: [0.8, 0.4, 1.0], hotB: [0.42, 0.06, 1.0], trailA: [1.25, 0.4, 2.6], trailB: [0.5, 0.06, 1.5], spark: [1.0, 0.3, 2.3], ghost: [0.55, 0.2, 1.0], flame: 1 },
+    { id: 'frost', name: 'Иней', text: 'Холодный блеск, срезы искрят голубым', css: '#7fd8ff', hotA: [0.7, 0.95, 1.0], hotB: [0.08, 0.4, 1.0], trailA: [1.1, 2.0, 2.6], trailB: [0.1, 0.5, 1.4], spark: [1.2, 2.0, 2.6], ghost: [0.3, 0.7, 1.0], flame: 0 },
+    { id: 'blood', name: 'Алая луна', text: 'Тяжёлый красный след цвета заката', css: '#ff3b4a', hotA: [1.0, 0.16, 0.12], hotB: [0.7, 0.0, 0.06], trailA: [2.6, 0.3, 0.3], trailB: [1.0, 0.02, 0.08], spark: [2.6, 0.35, 0.3], ghost: [1.0, 0.1, 0.12], flame: 0.4 },
+  ];
+  let style = STYLES[0];
+  function setStyle(id) {
+    style = STYLES.find((s) => s.id === id) || STYLES[0];
+    SHARED.uHotA.value.fromArray(style.hotA); SHARED.uHotB.value.fromArray(style.hotB);
+    document.documentElement.style.setProperty('--style', style.css);
+  }
+  // a crescent in the colours of the blade
+  function crescent(p, f, s, a0, a1, r0, r1, T0, o) {
+    return TRAILS.add(Object.assign({ p: [p.x, p.y, p.z], f: [f.x, f.y, f.z], s: [s.x, s.y, s.z], a0, a1, r0, r1, T: T0, hold: 0, fade: 0.22, colA: style.trailA, colB: style.trailB, flame: style.flame, gain: 1 }, o || {}));
+  }
+  // a tongue of flame: a spark that rises instead of falling
+  function flame(x, y, z) {
+    const c = style.trailB, k = 0.8 + rnd() * 0.7;
+    SPARKS.add(x, Math.max(0.05, y), z, (rnd() - 0.5) * 0.7, 1.1 + rnd() * 1.6, (rnd() - 0.5) * 0.7, c[0] * k, c[1] * k, c[2] * k, 1, 0.045 + rnd() * 0.07, 0.35 + rnd() * 0.5, 1.2, -3);
+  }
 
   // ---- state
-  const STANDOFF = 1.35, ARENA = 38, TOP = 3.0, MAX_PARTS = TOUCH ? 150 : 240; // TOP: how high the blade reaches
+  const STANDOFF = 1.35, ARENA = 38, TOP = 3.0, MAX_PARTS = TOUCH ? 150 : 240, HARD_PARTS = TOUCH ? 260 : 420; // TOP: how high the blade reaches
   const CUT = { minPiece: 2.5e-4, minHalf: 2e-5, tol: 0.012 };
-  const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false };
-  const P = { x: 0, z: 0, yaw: 0, hp: 100, maxHp: 100, focus: 1, speed: 0, phase: 0, dash: 0, dashCd: 0, dx: 0, dz: 1, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, nextSlash: 0, queue: null, flip: 0, dead: false, rig: null, up: {}, reach: 2.9, lungeMax: 3.8, drain: 0.24, run: 6.3, dashGap: 0.6, leech: 0, slowKill: 0.3 };
+  const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false, arsenal: false, flash: 0, demoQ: null, dummyAt: 0 };
+  const P = { x: 0, z: 0, yaw: 0, hp: 100, maxHp: 100, focus: 1, speed: 0, phase: 0, dash: 0, dashCd: 0, dx: 0, dz: 1, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, nextSlash: 0, queue: null, flip: 0, dead: false, rig: null, up: {}, cd: {}, slots: [], act: null, stance: 0, front: 1, combo: 0, comboAt: 0, reach: 2.9, lungeMax: 3.8, drain: 0.24, run: 6.3, dashGap: 0.6, leech: 0, slowKill: 0.3 };
   const bodies = [], enemies = [], solids = [];
   const keys = {};
   let vw = 1, vh = 1, seed = 20261119, pr = PR;
@@ -109,7 +133,7 @@
     if (P.rig) { scene.remove(P.rig.root); MODELS.dispose(P.rig); }
     P.rig = MODELS.makeRig(MODELS.hero());
     scene.add(P.rig.root);
-    Object.assign(P, { x: 0, z: 0, yaw: Math.PI, hp: P.maxHp, focus: 1, speed: 0, dash: 0, dashCd: 0, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, queue: null, dead: false });
+    Object.assign(P, { x: 0, z: 0, yaw: Math.PI, hp: P.maxHp, focus: 1, speed: 0, dash: 0, dashCd: 0, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, queue: null, dead: false, act: null, stance: 0 });
     katana.visible = true;
   }
   // ---- what the blade learns: each level offers three of these
@@ -176,8 +200,56 @@
     bone.quaternion.setFromUnitVectors(DOWN, v1);
   }
   const hilt = new T.Vector3(), bladeDir = new T.Vector3();
+  function carry(b, run, dt) { // carried low and behind while running, low and ahead while standing
+    b.armR.rotation.set(0.35 * run - 0.15, 0, -0.18); b.foreR.rotation.set(-0.55 + 0.25 * run, 0, 0);
+    P.rig.root.updateMatrixWorld(true);
+    hilt.set(0, -0.3, 0).applyMatrix4(b.foreR.matrixWorld);
+    const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw), k = lerp(0.85, -0.9, run);
+    bladeDir.set(fx * k - fz * 0.28, -0.42 + 0.2 * run, fz * k + fx * 0.28).normalize();
+    q1.setFromUnitVectors(UP, bladeDir);
+    const kk = 1 - Math.exp(-dt * 22);
+    katana.position.lerp(hilt, Math.max(kk, 0.6));
+    katana.quaternion.slerp(q1, kk);
+  }
+  // after a cut too fast to see: down on one knee, the blade sliding home into the scabbard at the left hip. k: 0 still out .. 1 home
+  function poseSheath(b, k) {
+    b.hips.position.y = b.hips.rest[1] - 0.3; b.hips.rotation.x = 0.2;
+    b.thighL.rotation.x = -1.35; b.shinL.rotation.x = 1.5; b.thighR.rotation.x = 0.25; b.shinR.rotation.x = 1.45;
+    b.chest.rotation.set(0.28, -0.35, 0); b.head.rotation.x = 0.25;
+    b.scarf.rotation.x = 0.5 + Math.sin(S.real * 7) * 0.12;
+    P.rig.root.rotation.y = P.yaw;
+    P.rig.root.updateMatrixWorld(true);
+    const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw), out = lerp(0.55, 0.12, ease(k));
+    v2.setFromMatrixPosition(b.hips.matrixWorld);
+    hilt.set(v2.x + fz * 0.2 + fx * out, v2.y + 0.12, v2.z - fx * 0.2 + fz * out);
+    bladeDir.set(-fx * 0.92 + fz * 0.1, -0.22, -fz * 0.92 - fx * 0.1).normalize();
+    aim(b.armR, hilt); b.foreR.rotation.set(0, 0, 0);
+    v3.copy(hilt).addScaledVector(bladeDir, 0.3); aim(b.armL, v3); b.foreL.rotation.set(0, 0, 0);
+    katana.position.copy(hilt); katana.quaternion.setFromUnitVectors(UP, bladeDir);
+  }
+  // poses that belong to a technique; returns true when it has placed the arms and the blade itself
+  function poseAct(b, a) {
+    if (a.hidden) { P.rig.root.visible = false; katana.visible = false; return true; }
+    P.rig.root.visible = true; katana.visible = true;
+    if (a.pose === 'sheath') { poseSheath(b, clamp(a.sheath, 0, 1)); return true; }
+    if (a.pose === 'spin') { // low, turning, the blade held out flat
+      P.rig.root.rotation.y = P.yaw + a.spin;
+      b.hips.position.y = b.hips.rest[1] - 0.18; b.hips.rotation.x = 0.1;
+      b.thighL.rotation.x = -0.75; b.shinL.rotation.x = 0.95; b.thighR.rotation.x = 0.5; b.shinR.rotation.x = 0.45;
+      b.chest.rotation.set(0.15, 0.5, 0); b.scarf.rotation.x = 1.2;
+      P.rig.root.updateMatrixWorld(true);
+      v2.setFromMatrixPosition(b.chest.matrixWorld); v2.y += 0.25;
+      const ang = P.yaw + a.spin + 1.2;
+      bladeDir.set(Math.sin(ang), -0.05 + 0.1 * Math.sin(a.spin), Math.cos(ang)).normalize();
+      hilt.copy(v2).addScaledVector(bladeDir, 0.45);
+      aim(b.armR, hilt); b.foreR.rotation.set(0, 0, 0); aim(b.armL, hilt); b.foreL.rotation.set(0, 0, 0);
+      katana.position.copy(hilt); katana.quaternion.setFromUnitVectors(UP, bladeDir);
+      return true;
+    }
+    return false;
+  }
   function poseHero(dt) {
-    const b = P.rig.bones, run = clamp(P.speed / 6, 0, 1), ph = P.phase, s = Math.sin(ph), c = Math.cos(ph);
+    const b = P.rig.bones, run = clamp(P.speed / 6, 0, 1), ph = P.phase, s = Math.sin(ph), c = Math.cos(ph), sw = P.sw, act = P.act;
     P.rig.root.position.set(P.x, 0, P.z);
     P.rig.root.rotation.y = P.yaw;
     const dash = P.dash > 0 || P.lunge ? 1 : 0;
@@ -189,15 +261,28 @@
     b.thighR.rotation.x = s * 0.85 * run; b.shinR.rotation.x = Math.max(0, -c) * 1.1 * run + 0.06;
     b.armL.rotation.set(s * 0.7 * run, 0, 0.1); b.foreL.rotation.set(-0.3 - 0.5 * run, 0, 0);
     b.scarf.rotation.x = clamp(P.speed * 0.17 + dash * 0.8, 0, 1.35) + Math.sin(S.real * 9) * 0.1 * (0.2 + run);
-    P.rig.root.updateMatrixWorld(true);
-    const sw = P.sw;
+    // a cut is made from a deep lunge: front knee bent, back leg stretched out, body low and leaning in. It eases back up afterwards.
+    if (!act && !(sw && sw.t < sw.T)) P.stance = Math.max(0, P.stance - dt * (run > 0.3 ? 10 : sw ? 1.2 : 3.4));
+    const st = ease(clamp(P.stance, 0, 1));
+    if (st > 0) {
+      const F = P.front >= 0 ? 'L' : 'R', B = F === 'L' ? 'R' : 'L';
+      b.hips.position.y -= 0.19 * st; b.hips.rotation.x = lerp(b.hips.rotation.x, 0.34, st);
+      b['thigh' + F].rotation.x = lerp(b['thigh' + F].rotation.x, -1.15, st); b['shin' + F].rotation.x = lerp(b['shin' + F].rotation.x, 1.1, st);
+      b['thigh' + B].rotation.x = lerp(b['thigh' + B].rotation.x, 0.75, st); b['shin' + B].rotation.x = lerp(b['shin' + B].rotation.x, 0.3, st);
+      b.head.rotation.x = lerp(b.head.rotation.x, -0.3, st);
+      b.scarf.rotation.x = Math.max(b.scarf.rotation.x, 0.9 * st);
+    }
+    if (act && poseAct(b, act)) return;
     if (sw) {
       sw.t += dt;
-      const k = clamp(sw.t / sw.T, 0, 1), a = lerp(sw.a0, sw.a1, 1 - (1 - k) * (1 - k));
+      // the blade runs a little past the end of the cut and settles back
+      const k = clamp(sw.t / sw.T, 0, 1), e = 1 - (1 - k) * (1 - k), over = sw.t > sw.T ? Math.sin(Math.min(1, (sw.t - sw.T) / 0.2) * Math.PI) * 0.14 : 0;
+      const a = lerp(sw.a0, sw.a1, e) + over * (sw.a1 > sw.a0 ? 1 : -1);
       bladeDir.copy(sw.f).multiplyScalar(Math.cos(a)).addScaledVector(sw.s, Math.sin(a));
-      b.chest.rotation.y = lerp(-0.55, 0.55, k) * sw.turn;
+      b.chest.rotation.y = lerp(-0.85, 0.85, e) * sw.turn; b.chest.rotation.x = 0.22;
+      if (sw.heavy) P.rig.root.rotation.y = P.yaw + sw.turn * e * Math.PI * 2; // the third blow of a combo turns the whole body round
       P.rig.root.updateMatrixWorld(true);
-      // the grip follows the swing but never leaves the reach of the arms; the trail shows the true plane of the cut
+      // the grip follows the swing but never leaves the reach of the arms; the crescent shows the true plane of the cut
       v2.setFromMatrixPosition(b.chest.matrixWorld); v2.y += 0.3;
       hilt.copy(sw.pv).addScaledVector(bladeDir, 0.42).sub(v2);
       if (hilt.length() > 0.5) hilt.setLength(0.5);
@@ -206,19 +291,8 @@
       aim(b.armL, hilt); b.foreL.rotation.set(0, 0, 0);
       katana.position.copy(hilt);
       katana.quaternion.setFromUnitVectors(UP, bladeDir);
-      if (sw.t > sw.T + 0.13) P.sw = null;
-    } else {
-      // carried low and behind while running, low and ahead while standing
-      b.armR.rotation.set(0.35 * run - 0.15, 0, -0.18); b.foreR.rotation.set(-0.55 + 0.25 * run, 0, 0);
-      P.rig.root.updateMatrixWorld(true);
-      hilt.set(0, -0.3, 0).applyMatrix4(b.foreR.matrixWorld);
-      const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw), k = lerp(0.85, -0.9, run);
-      bladeDir.set(fx * k - fz * 0.28, -0.42 + 0.2 * run, fz * k + fx * 0.28).normalize();
-      q1.setFromUnitVectors(UP, bladeDir);
-      const kk = 1 - Math.exp(-dt * 22);
-      katana.position.lerp(hilt, Math.max(kk, 0.6));
-      katana.quaternion.slerp(q1, kk);
-    }
+      if (sw.t > sw.T + 0.22) P.sw = null;
+    } else carry(b, run, dt);
   }
 
   // ---- idols
@@ -306,7 +380,7 @@
       } else if (e.state === 'chase') {
         turn = giant ? (e.down ? 1.3 : 1.8) : 4.2;
         const throws = e.kind === 'thrower' && e.arm && dist > 2.4;
-        if (P.dead || e.down) go = 0;
+        if (P.dead || e.down || e.dummy) go = 0;
         else if (throws) go = dist > 9.5 ? 1 : dist < 5 ? -0.55 : 0;
         else go = dist > e.range * 0.82 ? 1 : 0;
         if (!P.dead && throws) { if (dist < 12 && e.cool <= 0 && Math.abs(da) < 0.4) { e.state = 'windup'; e.t = 0; e.struck = false; e.ranged = true; SFX.windup(); } }
@@ -392,7 +466,7 @@
   function burst(x, y, z, job, n) {
     for (let i = 0; i < n; i++) {
       const k = 1.5 + rnd() * 5.5, side = (rnd() - 0.5) * 3;
-      SPARKS.add(x, y, z, job.u.x * k + job.n.x * side + (rnd() - 0.5) * 1.5, job.u.y * k + job.n.y * side + rnd() * 2.5, job.u.z * k + job.n.z * side + (rnd() - 0.5) * 1.5, 2.2, 0.7 + rnd() * 0.45, 0.1, 1, 0.03 + rnd() * 0.04, 0.3 + rnd() * 0.5, 1.2, 11);
+      SPARKS.add(x, y, z, job.u.x * k + job.n.x * side + (rnd() - 0.5) * 1.5, job.u.y * k + job.n.y * side + rnd() * 2.5, job.u.z * k + job.n.z * side + (rnd() - 0.5) * 1.5, style.spark[0], style.spark[1] * (0.8 + rnd() * 0.5), style.spark[2], 1, 0.03 + rnd() * 0.04, 0.3 + rnd() * 0.5, 1.2, 11);
     }
   }
   function capSparks(pieces, job, m) {
@@ -413,8 +487,9 @@
     for (const p of world) for (let i = 1; i < p.pts.length; i += 3) low = Math.min(low, p.pts[i]);
     const anchored = wasAnchored && low < 0.05 && Math.abs(job.n.y) >= 0.45;
     const b = addBody(world, { anchored, time: S.time });
+    if (style.flame) b.burn = S.time + 1.5 + rnd() * 1.8;
     if (anchored) { if (solid && !solid.body) { b.solid = solid; solid.body = b; } return b; }
-    const n = job.n, u = job.u, s = n.x * b.x + n.y * b.y + n.z * b.z - job.d >= 0 ? 1 : -1, upper = s * (n.y >= 0 ? 1 : -1) > 0;
+    const n = job.n, ua = job.uAt ? job.uAt(b.x, b.z) : null, u = ua ? v3.set(ua[0], ua[1], ua[2]) : job.u, s = n.x * b.x + n.y * b.y + n.z * b.z - job.d >= 0 ? 1 : -1, upper = s * (n.y >= 0 ? 1 : -1) > 0;
     const v = velAt(b.x, b.y, b.z), drag = (upper ? 1.0 : 0.3) * (0.5 + rnd() * 0.9);
     b.vx = v[0] + n.x * s * 0.55 + u.x * drag; b.vy = v[1] + n.y * s * 0.55 + u.y * drag + (upper ? 0.35 : 0); b.vz = v[2] + n.z * s * 0.55 + u.z * drag;
     const flat = Math.abs(n.y), k = s * (1 - flat) * 1.1;
@@ -488,6 +563,7 @@
   }
   function cutBody(b, job, want) {
     const R = b.R, n = job.n;
+    if (b.kind === 'part' && bodies.length > HARD_PARTS) return 0; // enough rubble: more would only choke the frame
     if (b.kind === 'shot') { for (const p of b.pieces) for (const f of p.faces) if (f.cap >= GEO.PERM) f.cap = S.time; P.focus = Math.min(1, P.focus + 0.05); } // cut in the air, the fire in it dies
     const lx = R[0] * n.x + R[3] * n.y + R[6] * n.z, ly = R[1] * n.x + R[4] * n.y + R[7] * n.z, lz = R[2] * n.x + R[5] * n.y + R[8] * n.z, ld = job.d - (n.x * b.x + n.y * b.y + n.z * b.z);
     const res = GEO.cutSet(b.pieces, lx, ly, lz, ld, S.time, (p) => want(b.x + R[0] * p.c[0] + R[1] * p.c[1] + R[2] * p.c[2], b.y + R[3] * p.c[0] + R[4] * p.c[1] + R[5] * p.c[2], b.z + R[6] * p.c[0] + R[7] * p.c[1] + R[8] * p.c[2], p.r), CUT);
@@ -497,6 +573,7 @@
     if (res.groups.length === 1) { // cut into, but still holding together: it keeps the glowing scar
       for (const p of res.pieces) delete p.from;
       b.pieces = res.pieces; b.mesh.geometry.dispose(); b.mesh.geometry = partGeometry(b.pieces);
+      if (style.flame) b.burn = S.time + 2;
       return 1;
     }
     const spin = [b.wx, b.wy, b.wz], solid = b.solid || null, anchored = b.anchored;
@@ -512,9 +589,9 @@
   const d0 = new T.Vector3(), d1 = new T.Vector3(), dm = new T.Vector3(), pj = new T.Vector3();
   function dirAt(px, py, out) { out.set(px / vw * 2 - 1, -(py / vh * 2 - 1), 0.5).unproject(camera).sub(camera.position).normalize(); }
   // A swipe on the screen becomes a plane through the eye, so the cut lands exactly on the line that was drawn.
-  function slash(ax, ay, bx, by) {
-    if (S.mode !== 'play' || P.dead || S.paused) return false;
-    if (S.real < P.nextSlash || P.lunge) { P.queue = [ax, ay, bx, by, S.real]; return false; }
+  function slash(ax, ay, bx, by, heavy) {
+    if ((S.mode !== 'play' && !S.arsenal) || P.dead || S.paused || P.act) return false;
+    if (S.real < P.nextSlash || P.lunge) { P.queue = [ax, ay, bx, by, S.real, heavy]; return false; }
     P.queue = null;
     P.nextSlash = S.real + (S.focusOn ? 0.07 : 0.19);
     camera.updateMatrixWorld();
@@ -526,7 +603,7 @@
     dm.copy(d0).add(d1).normalize();
     const tm = clamp(dm.y < -0.02 ? (1.05 - C.y) / dm.y : 16, 2, 45), M = C.clone().addScaledVector(dm, tm);
     const u = d1.clone().sub(d0); u.addScaledVector(n, -u.dot(n)).normalize();
-    const job = { n, d: n.dot(C), u, M, ax, ay, bx, by, len: Math.hypot(bx - ax, by - ay), vp: new T.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse), focal: vh / (2 * Math.tan(camera.fov * Math.PI / 360)) };
+    const job = { heavy: !!heavy, n, d: n.dot(C), u, M, ax, ay, bx, by, len: Math.hypot(bx - ax, by - ay), vp: new T.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse), focal: vh / (2 * Math.tan(camera.fov * Math.PI / 360)) };
     const dx = M.x - P.x, dz = M.z - P.z, dist = Math.hypot(dx, dz);
     if (dist > 0.05) P.yaw = Math.atan2(dx, dz);
     const go = Math.min(P.lungeMax, dist - STANDOFF);
@@ -546,13 +623,17 @@
     s.normalize();
     // which way the body turns with the swing: +1 when the blade goes to the wanderer's left
     const turn = (s.x * Math.cos(P.yaw) - s.z * Math.sin(P.yaw)) >= 0 ? 1 : -1;
-    P.sw = { t: 0, T: 0.11, pv, f, s, a0: -1.45, a1: 1.45, turn };
-    TRAILS.add({ px: pv.x, py: pv.y, pz: pv.z, fx: f.x, fy: f.y, fz: f.z, sx: s.x, sy: s.y, sz: s.z, a0: -1.45, a1: 1.45, r0: 0.5, r1: P.reach, T: 0.11 });
+    // the third blow of a quick combo is a full turn with a wider, longer cut
+    const heavy = job.heavy, A = heavy ? 2.5 : 1.5, T0 = heavy ? 0.17 : 0.11, R = P.reach * (heavy ? 1.18 : 1);
+    P.sw = { t: 0, T: T0, pv, f, s, a0: -A, a1: A, turn, heavy };
+    P.stance = 1; P.front = turn;
+    crescent(pv, f, s, -A, A, 0.45, R * 1.06, T0, heavy ? { gain: 1.35, fade: 0.3 } : null);
+    if (heavy) { ghostAt(P.x, P.z, P.yaw + 2.1, 0.22); ghostAt(P.x, P.z, P.yaw + 4.2, 0.3); }
     SFX.swing();
     const e = job.vp.elements, lx = job.bx - job.ax, ly = job.by - job.ay, len2 = lx * lx + ly * ly;
     const want = (x, y, z, r) => {
       if (y - r * 0.3 > TOP) return false;
-      const ex = x - px, ey = y - 1.1, ez = z - pz, lim = P.reach + r * 0.6;
+      const ex = x - px, ey = y - 1.1, ez = z - pz, lim = R + r * 0.6;
       if (ex * ex + ey * ey + ez * ez > lim * lim) return false;
       const w = e[3] * x + e[7] * y + e[11] * z + e[15];
       if (w <= 0.01) return false;
@@ -561,11 +642,11 @@
       return t > -pad && t < 1 + pad;
     };
     const killed = S.kills;
-    let made = cutAll(job, want, px, pz, P.reach);
+    let made = cutAll(job, want, px, pz, R);
     for (let k = 1; k <= P.up.twin; k++) { // the second and third edge: the same cut a hand's width to either side
       const side = k === 1 ? 0.26 : -0.26;
-      made += cutAll(Object.assign({}, job, { d: job.d + side }), want, px, pz, P.reach);
-      TRAILS.add({ px: pv.x + n.x * side, py: pv.y + n.y * side, pz: pv.z + n.z * side, fx: f.x, fy: f.y, fz: f.z, sx: s.x, sy: s.y, sz: s.z, a0: -1.45, a1: 1.45, r0: 0.5, r1: P.reach, T: 0.13 + k * 0.03 });
+      made += cutAll(Object.assign({}, job, { d: job.d + side }), want, px, pz, R);
+      crescent({ x: pv.x + n.x * side, y: pv.y + n.y * side, z: pv.z + n.z * side }, f, s, -A, A, 0.45, R * 1.06, T0 + 0.02 + k * 0.03, { gain: 0.8 });
     }
     if (made) scored(made, killed);
   }
@@ -582,7 +663,7 @@
     S.parts += made;
     SFX.cut(made);
     S.shake = Math.max(S.shake, Math.min(0.55, 0.16 + made * 0.03));
-    if (S.kills > killed) S.stop = 0.05;
+    if (S.kills > killed) { S.stop = 0.05; if (P.sw && P.sw.heavy) S.flash = Math.max(S.flash, 0.6); }
     if (!S.cutOnce) { S.cutOnce = true; $('hint').classList.add('gone'); }
   }
   // with the dash upgrade: one flat cut along the whole path of the dash
@@ -600,7 +681,8 @@
     };
     const killed = S.kills, made = cutAll(job, want, (ax + bx) / 2, (az + bz) / 2, len / 2 + 1.7);
     const s = new T.Vector3().crossVectors(n, u);
-    TRAILS.add({ px: bx, py: 1.0, pz: bz, fx: -u.x, fy: -u.y, fz: -u.z, sx: s.x, sy: s.y, sz: s.z, a0: -2.7, a1: 2.7, r0: 0.4, r1: 1.8, T: 0.1 });
+    crescent({ x: bx, y: 1.0, z: bz }, { x: -u.x, y: -u.y, z: -u.z }, s, -2.7, 2.7, 0.4, 1.9, 0.1);
+    STREAKS.add(ax, 1.0, az, bx, 1.0, bz, 0.12, 0.35, 0.04, style.trailA);
     SFX.swing();
     if (made) scored(made, killed);
   }
@@ -612,8 +694,177 @@
       const sx = (pj.x * 0.5 + 0.5) * vw, sy = (0.5 - pj.y * 0.5) * vh, d = (sx - x) * (sx - x) + (sy - y) * (sy - y);
       if (d < best) { best = d; cx = sx; cy = sy; }
     }
-    const ang = [-0.5, Math.PI + 0.5, 0.06][P.flip++ % 3], L = clamp(vh * 0.17, 70, 180);
-    slash(cx - Math.cos(ang) * L, cy + Math.sin(ang) * L, cx + Math.cos(ang) * L, cy - Math.sin(ang) * L);
+    // quick taps make a combo of three: down to the right, down to the left, then a wide flat cut on the turn
+    if (S.real - P.comboAt > 1.1) P.combo = 0;
+    const i = P.combo % 3, ang = [-0.5, Math.PI + 0.5, 0.06][i], L = clamp(vh * 0.17, 70, 180) * (i === 2 ? 1.3 : 1);
+    if (slash(cx - Math.cos(ang) * L, cy + Math.sin(ang) * L, cx + Math.cos(ang) * L, cy - Math.sin(ang) * L, i === 2)) { P.combo++; P.comboAt = S.real; }
+  }
+
+  // ---- techniques: two are worn at a time, chosen in the arsenal
+  const ABIL = {
+    storm: { name: 'Тысяча срезов', short: 'Срезы', text: 'Исчезаешь, и всё вокруг цели изрублено раньше, чем успело упасть', cd: 14 },
+    wave: { name: 'Полумесяц', short: 'Месяц', text: 'Срез срывается с клинка и летит вперёд, разрезая всё на пути', cd: 6 },
+    spin: { name: 'Вихрь', short: 'Вихрь', text: 'Три круговых среза вокруг себя на разной высоте', cd: 8 },
+    iai: { name: 'Удар сквозь', short: 'Сквозь', text: 'Проносишься насквозь. Всё распадается, когда клинок входит в ножны', cd: 9 },
+  };
+  const ABIL_IDS = Object.keys(ABIL), waves = [], mouse = { x: 0, y: 0, seen: false };
+  for (const id of ABIL_IDS) P.cd[id] = 0;
+  // where a technique is pointed: at the mouse, or with fingers at the nearest idol, or else straight ahead
+  function aimDir() {
+    if (mouse.seen && !TOUCH && !S.arsenal) {
+      camera.updateMatrixWorld(); dirAt(mouse.x, mouse.y, d0);
+      if (d0.y < -0.02) { const t = (1.0 - camera.position.y) / d0.y, x = camera.position.x + d0.x * t - P.x, z = camera.position.z + d0.z * t - P.z, l = Math.hypot(x, z); if (l > 0.3) return [x / l, z / l]; }
+    }
+    let best = null, bd = 16;
+    for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - P.x, e.z - P.z); if (d < bd) { bd = d; best = e; } }
+    if (best && bd > 0.2) return [(best.x - P.x) / bd, (best.z - P.z) / bd];
+    return [Math.sin(P.yaw), Math.cos(P.yaw)];
+  }
+  function ghostAt(x, z, yaw, life) { // an afterimage of the wanderer as he stands now, set down somewhere else
+    const r = P.rig.root, px = r.position.x, pz = r.position.z, ry = r.rotation.y;
+    r.position.x = x; r.position.z = z; r.rotation.y = yaw;
+    GHOSTS.add(bake(P.rig), style.ghost, life || 0.3);
+    r.position.x = px; r.position.z = pz; r.rotation.y = ry; r.updateMatrixWorld(true);
+  }
+  function keepIn() { pushOut(P, 0.36); const r = Math.hypot(P.x, P.z); if (r > ARENA) { P.x *= ARENA / r; P.z *= ARENA / r; } }
+  function endAct() { P.act = null; P.rig.root.visible = true; katana.visible = true; }
+  function useAbility(slot) {
+    const id = P.slots[slot];
+    if (!id || P.act || P.dead || S.paused || S.choosing || P.cd[id] > 0 || (S.mode !== 'play' && !S.arsenal)) return false;
+    const [ax, az] = aimDir();
+    P.yaw = Math.atan2(ax, az); P.lunge = null; P.sw = null; P.dash = 0; P.queue = null; P.kx = P.kz = 0;
+    const a = P.act = { id, t: 0, ax, az, x0: P.x, z0: P.z, made: 0, kills: S.kills, hidden: false, pose: null, slow: null, step: 0 };
+    P.cd[id] = ABIL[id].cd; P.invul = Math.max(P.invul, 1.5); P.stance = 1; P.front = 1;
+    if (id === 'storm') {
+      // the middle of it: the nearest idol in front, or a spot a few steps ahead
+      const cx = P.x + ax * 2.6, cz = P.z + az * 2.6;
+      let bd = 4.4;
+      for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - cx, e.z - cz); if (d < bd) { bd = d; a.c = [e.x, Math.min(1.7, 1.05 * e.scale), e.z]; } }
+      if (!a.c) a.c = [cx, 1.1, cz];
+      a.slow = 0.04; a.cuts = 12; a.next = 0.13;
+      SFX.focus(true);
+    } else if (id === 'wave') {
+      const tilt = P.flip++ % 2 ? 0.5 : -0.5, n = new T.Vector3(az * Math.sin(tilt), Math.cos(tilt), -ax * Math.sin(tilt)), f = new T.Vector3(ax, 0, az), s = new T.Vector3().crossVectors(n, f), pv = new T.Vector3(P.x, 1.25, P.z);
+      a.n = n; a.f = f; a.s = s;
+      P.sw = { t: 0, T: 0.13, pv, f, s, a0: -1.9, a1: 1.3, turn: 1, heavy: false };
+      crescent(pv, f, s, -1.9, 1.3, 0.45, P.reach * 1.1, 0.13, { gain: 1.3 });
+      SFX.swing();
+    } else if (id === 'spin') {
+      a.pose = 'spin'; a.spin = 0;
+    } else if (id === 'iai') {
+      let L = 9.5;
+      const er = Math.hypot(P.x + ax * L, P.z + az * L);
+      if (er > ARENA) L = Math.max(2, L - (er - ARENA));
+      a.x1 = P.x + ax * L; a.z1 = P.z + az * L; a.L = L;
+      for (let i = 0; i < 6; i++) ghostAt(lerp(P.x, a.x1, i / 6), lerp(P.z, a.z1, i / 6), P.yaw, 0.25 + i * 0.07);
+      STREAKS.add(P.x, 1.05, P.z, a.x1, 1.05, a.z1, 0.16, 0.8, 0.06, style.trailA);
+      for (let i = 0; i < 14; i++) DUST.add(lerp(P.x, a.x1, i / 14), 0.12, lerp(P.z, a.z1, i / 14), (rnd() - 0.5) * 2, 0.4 + rnd(), (rnd() - 0.5) * 2, 0.85, 0.66, 0.46, 0.2, 0.4, 0.7, 2, -0.2);
+      P.x = a.x1; P.z = a.z1; a.pose = 'sheath'; a.sheath = 0; a.slow = 0.03;
+      SFX.dash(); SFX.focus(true);
+    }
+    return true;
+  }
+  function updateAct(dt) { // dt: real seconds; a technique does not slow down with the world
+    for (const id of ABIL_IDS) P.cd[id] = Math.max(0, P.cd[id] - dt);
+    const a = P.act;
+    if (!a) return;
+    if (P.dead) { endAct(); return; }
+    a.t += dt;
+    if (a.id === 'storm') {
+      const c = a.c;
+      if (a.t > 0.1 && a.step < a.cuts) a.hidden = true;
+      while (a.step < a.cuts && a.t >= a.next) {
+        a.next += 0.05; a.step++;
+        // a plane at any angle through the middle of it
+        let nx, ny, nz, l;
+        do { nx = rnd() * 2 - 1; ny = rnd() * 2 - 1; nz = rnd() * 2 - 1; l = Math.hypot(nx, ny, nz); } while (l > 1 || l < 0.2);
+        const n = new T.Vector3(nx / l, ny / l, nz / l), u = new T.Vector3(rnd() - 0.5, (rnd() - 0.5) * 0.6, rnd() - 0.5);
+        u.addScaledVector(n, -u.dot(n)).normalize();
+        const px = c[0] + (rnd() - 0.5) * 0.9, py = Math.max(0.25, c[1] + (rnd() - 0.5) * 0.9), pz = c[2] + (rnd() - 0.5) * 0.9;
+        const want = (x, y, z, r) => { const dx = x - c[0], dy = y - c[1], dz = z - c[2], lim = 3.3 + r * 0.5; return dx * dx + dy * dy + dz * dz < lim * lim; };
+        CUT.minPiece = 1.4e-3; // crumbs smaller than a fist are left alone, or there would be thousands
+        a.made += cutAll({ n, d: n.x * px + n.y * py + n.z * pz, u }, want, c[0], c[2], 3.3);
+        CUT.minPiece = 2.5e-4;
+        STREAKS.add(px - u.x * 4.4, py - u.y * 4.4, pz - u.z * 4.4, px + u.x * 4.4, py + u.y * 4.4, pz + u.z * 4.4, 0.1, 0.5, 0.045, style.trailA);
+        ghostAt(px - u.x * 1.6, pz - u.z * 1.6, Math.atan2(u.x, u.z), 0.32);
+        SFX.flurry(a.step);
+        S.shake = Math.max(S.shake, 0.25);
+      }
+      if (a.step >= a.cuts && !a.landed && a.t >= a.next + 0.02) { // out the far side, already putting the blade away
+        a.landed = true; a.hidden = false; a.pose = 'sheath'; a.sheath = 0; a.from = a.t;
+        P.x = c[0] + a.ax * 2.7; P.z = c[2] + a.az * 2.7; keepIn();
+        P.yaw = Math.atan2(a.ax, a.az);
+      }
+      if (a.landed) {
+        a.sheath = (a.t - a.from) / 0.42;
+        if (!a.clicked && a.t >= a.from + 0.45) { a.clicked = true; a.slow = null; SFX.sheath(); S.flash = 1; S.shake = Math.max(S.shake, 0.7); if (a.made) scored(a.made, a.kills); }
+        if (a.t >= a.from + 0.7) endAct();
+      }
+    } else if (a.id === 'wave') {
+      if (!a.fired && a.t >= 0.11) {
+        a.fired = true;
+        const w = { x: P.x + a.ax, z: P.z + a.az, ax: a.ax, az: a.az, d: 0, max: 16, kills: S.kills, trail: null };
+        w.job = { n: a.n, d: a.n.x * w.x + a.n.y * 1.2 + a.n.z * w.z, u: a.f };
+        w.trail = crescent({ x: w.x, y: 1.2, z: w.z }, a.f, a.s, -1.05, 1.05, 1.0, 2.5, 0.05, { hold: 9, fade: 0.25, gain: 1.5, flame: Math.max(style.flame, 0.6), follow: () => [w.x - w.ax * 1.9, 1.2, w.z - w.az * 1.9] });
+        waves.push(w);
+        SFX.wave(); S.shake = Math.max(S.shake, 0.3);
+      }
+      if (a.t >= 0.34) endAct();
+    } else if (a.id === 'spin') {
+      a.spin = ease(Math.min(1, a.t / 0.5)) * Math.PI * 4;
+      const H = [0.55, 1.15, 1.75], at = [0.05, 0.19, 0.33];
+      while (a.step < 3 && a.t >= at[a.step]) {
+        const h = H[a.step], ph = rnd() * 6.28, px = P.x, pz = P.z;
+        const n = new T.Vector3(Math.cos(ph) * 0.1, 1, Math.sin(ph) * 0.1).normalize(), f = new T.Vector3(1, 0, 0);
+        f.addScaledVector(n, -f.dot(n)).normalize();
+        const s = new T.Vector3().crossVectors(n, f);
+        // what it cuts loose is flung round and outward
+        const job = { n, d: n.x * px + n.y * h + n.z * pz, u: f, uAt: (x, z) => { const dx = x - px, dz = z - pz, l = Math.hypot(dx, dz) || 1; return [(dx * 0.6 - dz) / l, 0, (dz * 0.6 + dx) / l]; } };
+        const want = (x, y, z, r) => { if (y - r * 0.3 > 3.2) return false; const dx = x - px, dz = z - pz, lim = 3.7 + r * 0.5; return dx * dx + dz * dz < lim * lim; };
+        const made = cutAll(job, want, px, pz, 3.8);
+        if (made) { scored(made, a.kills); a.kills = S.kills; }
+        crescent({ x: px, y: h, z: pz }, f, s, -Math.PI, Math.PI, 1.2, 4.3, 0.16, { fade: 0.3, gain: 1.2 });
+        for (let i = 0; i < 10; i++) { const g = rnd() * 6.28; DUST.add(px + Math.cos(g) * 1.2, 0.12, pz + Math.sin(g) * 1.2, Math.cos(g) * 6, 0.4 + rnd(), Math.sin(g) * 6, 0.85, 0.66, 0.46, 0.2, 0.42, 0.6, 2.4, -0.2); }
+        SFX.swing(); S.shake = Math.max(S.shake, 0.35);
+        a.step++;
+      }
+      if (a.t >= 0.56) endAct();
+    } else if (a.id === 'iai') {
+      a.sheath = (a.t - 0.12) / 0.4;
+      if (!a.clicked && a.t >= 0.55) { // the blade is home: only now does what it passed through come apart
+        a.clicked = true; a.slow = null;
+        const sx = a.az, sz = -a.ax, f = new T.Vector3(a.ax, 0, a.az), x0 = a.x0, z0 = a.z0, L = a.L;
+        const want = (x, y, z, r) => {
+          if (y - r * 0.3 > 3.2) return false;
+          const t = clamp(((x - x0) * a.ax + (z - z0) * a.az) / L, 0, 1), dx = x - (x0 + a.ax * L * t), dz = z - (z0 + a.az * L * t), lim = 1.7 + r * 0.5;
+          return dx * dx + dz * dz < lim * lim;
+        };
+        let made = 0;
+        for (const [ny, ns, h] of [[1, 0.2, 1.05], [0.25, 1, 1.0]]) { // one flat cut and one upright along the path: what stood on it falls in four
+          const n = new T.Vector3(sx * ns, ny, sz * ns).normalize();
+          made += cutAll({ n, d: n.x * x0 + n.y * h + n.z * z0, u: f }, want, (x0 + a.x1) / 2, (z0 + a.z1) / 2, L / 2 + 1.9);
+        }
+        SFX.sheath(); S.flash = 1; S.shake = Math.max(S.shake, 0.6);
+        if (made) scored(made, a.kills);
+      }
+      if (a.t >= 0.8) endAct();
+    }
+  }
+  function updateFlying(dt) { // crescents in flight
+    for (let i = waves.length - 1; i >= 0; i--) {
+      const w = waves[i], len = 28 * dt, x0 = w.x, z0 = w.z;
+      if (len <= 0) continue;
+      w.x += w.ax * len; w.z += w.az * len; w.d += len;
+      const want = (x, y, z, r) => {
+        if (y - r * 0.3 > 3.6) return false;
+        const t = clamp(((x - x0) * w.ax + (z - z0) * w.az) / len, 0, 1), dx = x - (x0 + w.ax * len * t), dz = z - (z0 + w.az * len * t), lim = 2.0 + r * 0.5;
+        return dx * dx + dz * dz < lim * lim;
+      };
+      const made = cutAll(w.job, want, (x0 + w.x) / 2, (z0 + w.z) / 2, 2.2 + len / 2);
+      if (made) { scored(made, w.kills); w.kills = S.kills; }
+      for (let k = 0; k < 4; k++) { const o = (rnd() - 0.5) * 3.6; flame(w.x + w.az * o, 0.3 + rnd() * 1.6, w.z - w.ax * o); }
+      if (w.d >= w.max || Math.hypot(w.x, w.z) > ARENA + 6) { TRAILS.stop(w.trail); waves.splice(i, 1); }
+    }
   }
 
   // ---- the wanderer takes a blow, or falls
@@ -626,7 +877,7 @@
     if (P.hp <= 0) die();
   }
   function die() {
-    P.hp = 0; P.dead = true; S.focusOn = false;
+    P.hp = 0; P.dead = true; S.focusOn = false; P.act = null; katana.visible = true;
     const rig = P.rig;
     rig.root.updateMatrixWorld(true);
     for (const b of rig.list) {
@@ -723,7 +974,7 @@
     if (ev.button === 2) S.focusHeld = true;
     else if (ev.button === 0) press('mouse', x, y);
   });
-  window.addEventListener('mousemove', (ev) => { if (swipe && swipe.id === 'mouse') { const [x, y] = local(ev); move('mouse', x, y); } });
+  window.addEventListener('mousemove', (ev) => { const [x, y] = local(ev); mouse.x = x; mouse.y = y; mouse.seen = true; if (swipe && swipe.id === 'mouse') move('mouse', x, y); });
   window.addEventListener('mouseup', (ev) => {
     if (ev.button === 2) S.focusHeld = false;
     else if (ev.button === 0) { const [x, y] = local(ev); lift('mouse', x, y, true); }
@@ -737,8 +988,11 @@
     if (ev.repeat) return;
     keys[ev.code] = true;
     if (S.choosing) { const i = ['Digit1', 'Digit2', 'Digit3', 'Numpad1', 'Numpad2', 'Numpad3'].indexOf(ev.code); if (i >= 0) choose(i % 3); return; }
+    if (ev.code === 'KeyQ') useAbility(0);
+    if (ev.code === 'KeyE') useAbility(1);
     if (ev.code === 'Space') { ev.preventDefault(); if (S.mode === 'play') dash(); else if (S.mode === 'title') begin(); else if (!$('dead').hidden) begin(); }
     if (ev.code === 'Enter' && (S.mode === 'title' || !$('dead').hidden)) begin();
+    if (ev.code === 'Escape' && !$('arsenal').hidden) { arsenal(false); return; }
     if ((ev.code === 'Escape' || ev.code === 'KeyP') && S.mode === 'play') pause(!S.paused);
     if (ev.code.startsWith('Arrow')) ev.preventDefault();
   });
@@ -750,10 +1004,14 @@
   $('resume').addEventListener('click', () => pause(false));
   $('btnDash').addEventListener('pointerdown', (ev) => { ev.preventDefault(); dash(); });
   $('btnFocus').addEventListener('pointerdown', (ev) => { ev.preventDefault(); focusBtn = !focusBtn; });
+  for (const k of [0, 1]) $('abil' + k).addEventListener('pointerdown', (ev) => { ev.preventDefault(); useAbility(k); });
+  $('openArsenal').addEventListener('click', () => arsenal(true));
+  $('pauseArsenal').addEventListener('click', () => arsenal(true));
+  $('arsenalDone').addEventListener('click', () => arsenal(false));
   $('sound').addEventListener('click', () => { const off = $('sound').getAttribute('aria-pressed') !== 'true'; $('sound').setAttribute('aria-pressed', String(off)); $('sound').textContent = off ? 'Звук выкл' : 'Звук вкл'; SFX.mute(off); });
   function pause(on) { S.paused = on; $('pause').hidden = !on; swipe = null; stick = null; showStick(); }
   function dash() {
-    if (P.dead || P.dashCd > 0 || S.paused) return;
+    if (P.dead || P.dashCd > 0 || S.paused || P.act) return;
     let dx = P.dx, dz = P.dz;
     if (!(P.speed > 0.5)) { dx = Math.sin(P.yaw); dz = Math.cos(P.yaw); }
     P.dash = 0.16; P.dashCd = P.dashGap; P.ddx = dx; P.ddz = dz; P.sx0 = P.x; P.sz0 = P.z; P.invul = Math.max(P.invul, 0.26);
@@ -763,10 +1021,75 @@
   function begin(fixedSeed) {
     SFX.start();
     clearWorld(); buildProps(); resetUps(); newHero();
-    Object.assign(S, { xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, mode: 'play', time: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusLock: false, wave: 0, queue: [], next: 0, kills: 0, parts: 0, paused: false, hurtK: 0, cutOnce: false });
+    waves.length = 0; for (const id of ABIL_IDS) P.cd[id] = 0;
+    katana.visible = true; $('arsenal').hidden = true; $('abils').hidden = false;
+    Object.assign(S, { arsenal: false, demoQ: null, flash: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, mode: 'play', time: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusLock: false, wave: 0, queue: [], next: 0, kills: 0, parts: 0, paused: false, hurtK: 0, cutOnce: false });
     seed = typeof fixedSeed === 'number' ? fixedSeed : (Date.now() & 0xffffff) | 1; focusBtn = false;
     $('title').hidden = true; $('dead').hidden = true; $('pause').hidden = true; $('hud').hidden = false; $('hint').classList.remove('gone');
     startWave(1);
+  }
+
+  // ---- the arsenal: the style of the blade and the two techniques worn, kept between visits
+  const LOAD = { style: 'ember', slots: ['storm', 'wave'] };
+  try {
+    const j = JSON.parse(localStorage.getItem('blade-clay-loadout') || 'null');
+    if (j && STYLES.some((s) => s.id === j.style)) LOAD.style = j.style;
+    if (j && Array.isArray(j.slots) && j.slots.length === 2 && j.slots.every((x) => ABIL[x]) && j.slots[0] !== j.slots[1]) LOAD.slots = j.slots;
+  } catch (e) { /* storage may be closed */ }
+  function applyLoad(save) {
+    setStyle(LOAD.style); P.slots = LOAD.slots.slice();
+    if (save) try { localStorage.setItem('blade-clay-loadout', JSON.stringify(LOAD)); } catch (e) { /* storage may be closed */ }
+    drawArsenal(); hudKey = '';
+  }
+  function drawArsenal() {
+    const fill = (box, items, cur, pick) => {
+      box.textContent = '';
+      for (const it of items) {
+        const b = document.createElement('button'), nm = document.createElement('b'), tx = document.createElement('span');
+        b.type = 'button'; b.className = 'opt'; b.dataset.id = it.id; b.setAttribute('aria-pressed', String(it.id === cur));
+        if (it.css) { const sw = document.createElement('i'); sw.style.background = it.css; b.append(sw); }
+        nm.textContent = it.name; tx.textContent = it.text + (it.cd ? '. Перезарядка ' + it.cd + ' с' : '');
+        b.append(nm, tx);
+        b.addEventListener('click', () => pick(it.id));
+        box.append(b);
+      }
+    };
+    fill($('optStyle'), STYLES, LOAD.style, (id) => { LOAD.style = id; applyLoad(true); demo('style'); });
+    const abil = ABIL_IDS.map((id) => Object.assign({ id }, ABIL[id]));
+    for (const k of [0, 1]) fill($('optSlot' + k), abil, LOAD.slots[k], (id) => { if (LOAD.slots[1 - k] === id) LOAD.slots[1 - k] = LOAD.slots[k]; LOAD.slots[k] = id; applyLoad(true); demo(k); });
+  }
+  // On the title screen the arsenal comes with a practice idol, and every choice is shown on it at once.
+  function arsenal(on) {
+    S.arsenal = on && S.mode === 'title';
+    $('arsenal').hidden = !on;
+    if (on) { $('title').hidden = true; $('pause').hidden = true; }
+    else if (S.mode === 'title') { $('title').hidden = false; for (const e of enemies) if (!e.dead) { e.dead = true; scene.remove(e.rig.root); MODELS.dispose(e.rig); } enemies.length = 0; S.demoQ = null; }
+    else if (S.paused) $('pause').hidden = false;
+    if (S.arsenal) { S.dummyAt = 0; dummy(); }
+  }
+  function dummy() {
+    for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].dead) enemies.splice(i, 1);
+    const e = spawnIdol('grunt');
+    e.x = P.x + 2.7; e.z = P.z - 1.1; e.dummy = true; e.riseT = 0.5; e.speed = 0; e.range = -1; e.yaw = Math.atan2(P.x - e.x, P.z - e.z);
+    e.rig.root.position.set(e.x, -2 * e.scale, e.z);
+    return e;
+  }
+  function demo(what) {
+    if (!S.arsenal || P.act) return;
+    const e = enemies.find((x) => !x.dead);
+    if (e && Math.hypot(e.x - P.x, e.z - P.z) > 6) { P.x = e.x - 2.7; P.z = e.z + 1.1; }
+    if (what === 'style') { const at = e ? [e.x, e.z] : [P.x + 2.4, P.z - 0.9]; S.demoQ = [0.05, 0.4, 0.8].map((t) => [S.real + t, at]); }
+    else { P.cd[P.slots[what]] = 0; S.demoQ = null; useAbility(what); }
+  }
+  function updateDemo() {
+    if (!S.arsenal) return;
+    if (S.demoQ && S.demoQ.length && S.real >= S.demoQ[0][0] && !P.lunge) {
+      const at = S.demoQ.shift()[1];
+      camera.updateMatrixWorld();
+      pj.set(at[0], 1.05, at[1]).project(camera);
+      tapSlash((pj.x * 0.5 + 0.5) * vw, (0.5 - pj.y * 0.5) * vh);
+    }
+    if (!enemies.some((e) => !e.dead)) { if (!S.dummyAt) S.dummyAt = S.real + 1.3; else if (S.real >= S.dummyAt) { S.dummyAt = 0; dummy(); } }
   }
 
   // ---- per frame
@@ -778,6 +1101,7 @@
     if (keys.KeyA || keys.ArrowLeft) mx -= 1;
     if (keys.KeyD || keys.ArrowRight) mx += 1;
     if (stick) { mx += stick.x; mz += stick.y; }
+    if (P.act || S.mode !== 'play') { mx = 0; mz = 0; }
     const ml = Math.hypot(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
     P.invul = Math.max(0, P.invul - dt); P.dashCd = Math.max(0, P.dashCd - dt);
@@ -794,7 +1118,7 @@
       if (P.dash <= 0 && P.up.whirl) { P.x += vx * dt; P.z += vz * dt; vx = vz = 0; whirl(); }
       P.yaw = Math.atan2(P.ddx, P.ddz);
     } else {
-      const sp = P.run * (P.sw ? 0.35 : 1);
+      const sp = P.run * (P.sw && P.sw.t < P.sw.T + 0.04 ? 0.35 : 1);
       vx = mx * sp; vz = mz * sp;
       P.speed = lerp(P.speed, Math.hypot(vx, vz), 1 - Math.exp(-dt * 14));
       if (ml > 0.15) { P.dx = mx / ml; P.dz = mz / ml; if (!P.sw) { let da = Math.atan2(mx, mz) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 16)); } }
@@ -805,12 +1129,13 @@
     pushOut(P, 0.36);
     const r = Math.hypot(P.x, P.z);
     if (r > ARENA) { P.x *= ARENA / r; P.z *= ARENA / r; }
-    if (P.queue && S.real >= P.nextSlash && !P.lunge) { const q = P.queue; P.queue = null; if (S.real - q[4] < 0.25) slash(q[0], q[1], q[2], q[3]); }
+    if (P.queue && S.real >= P.nextSlash && !P.lunge) { const q = P.queue; P.queue = null; if (S.real - q[4] < 0.25) slash(q[0], q[1], q[2], q[3], q[5]); }
   }
   function updateBodies(dt) {
     if (dt > 0) { const h = dt / 2; PHYS.step(bodies, h, S.time - h); PHYS.step(bodies, h, S.time); }
     let loose = 0, oldest = null;
     for (const b of bodies) {
+      if (b.burn > S.time && rnd() < dt * 40 * style.flame) flame(b.x + (rnd() - 0.5) * b.radius, b.y + (rnd() - 0.4) * b.radius * 0.8, b.z + (rnd() - 0.5) * b.radius);
       if (b.anchored) continue;
       if (!b.asleep) { b.mesh.position.set(b.x, b.y, b.z); b.mesh.quaternion.set(b.q[0], b.q[1], b.q[2], b.q[3]); b.restAt = 0; }
       else if (!b.restAt) b.restAt = S.time;
@@ -829,7 +1154,11 @@
       if (b.asleep && (!oldest || b.restAt < oldest.restAt)) oldest = b;
       if (b.asleep && S.time - b.restAt > (b.vol < 0.004 ? 9 : 24)) b.gone = S.real;
     }
-    if (loose > MAX_PARTS && oldest) oldest.gone = S.real;
+    if (loose > MAX_PARTS) { // too much rubble: the oldest goes first, a few each frame; in a flood even what is still moving goes
+      const over = loose - MAX_PARTS, flood = over > MAX_PARTS * 0.4;
+      const old = bodies.filter((b) => !b.anchored && !b.gone && b.kind === 'part' && (b.asleep || flood)).sort((p, q) => p.born - q.born);
+      for (let i = 0; i < Math.min(over, flood ? 24 : 8, old.length); i++) old[i].gone = S.real;
+    }
     for (const b of bodies.slice()) {
       if (!b.gone) continue;
       if (b.gone === 1) { removeBody(b); continue; } // fell out of the world
@@ -840,9 +1169,9 @@
   }
   const camAt = new T.Vector3(0, 1, 0);
   function updateCamera(dt) {
-    const f = S.focusK, tall = camera.aspect < 0.9;
+    const f = S.focusK, tall = camera.aspect < 0.9, ox = S.arsenal ? (tall ? 1.2 : -3.4) : 0, oz = S.arsenal && tall ? 6.6 : 0;
     const pitch = lerp(0.62, 0.31, f), dist = lerp(11.4, 7.6, f) * (tall ? 1.3 : 1);
-    v1.set(P.x + P.dx * Math.min(P.speed, 6.3) * 0.12 * (1 - f), 1.0 + 0.35 * f, P.z + P.dz * Math.min(P.speed, 6.3) * 0.12 * (1 - f));
+    v1.set(P.x + ox + P.dx * Math.min(P.speed, 6.3) * 0.12 * (1 - f), 1.0 + 0.35 * f, P.z + oz + P.dz * Math.min(P.speed, 6.3) * 0.12 * (1 - f));
     camAt.lerp(v1, 1 - Math.exp(-dt * 7));
     S.shake = Math.max(0, S.shake - dt * 2.4);
     const sh = S.shake * S.shake * 0.5;
@@ -855,13 +1184,14 @@
   const hud = { hp: $('hp'), focus: $('focus'), xp: $('xp'), level: $('level'), wave: $('wave'), kills: $('kills'), parts: $('parts') };
   let hudKey = '';
   function updateHud() {
-    const key = [Math.round(P.hp), P.maxHp, Math.round(P.focus * 50), S.xp, S.level, S.wave, S.kills, S.parts, S.focusOn, focusBtn].join();
+    const key = [P.slots.join(), Math.ceil(P.cd[P.slots[0]] * 10), Math.ceil(P.cd[P.slots[1]] * 10), Math.round(P.hp), P.maxHp, Math.round(P.focus * 50), S.xp, S.level, S.wave, S.kills, S.parts, S.focusOn, focusBtn].join();
     if (key === hudKey) return;
     hudKey = key;
     hud.hp.style.transform = 'scaleX(' + clamp(P.hp / P.maxHp, 0, 1) + ')';
     hud.focus.style.transform = 'scaleX(' + clamp(P.focus, 0, 1) + ')';
     hud.xp.style.transform = 'scaleX(' + clamp(S.xp / S.need, 0, 1) + ')';
     hud.level.textContent = S.level; hud.wave.textContent = S.wave; hud.kills.textContent = S.kills; hud.parts.textContent = S.parts;
+    for (const k of [0, 1]) { const id = P.slots[k], cd = P.cd[id]; $('abilName' + k).textContent = TOUCH ? ABIL[id].short : ABIL[id].name; $('abilCd' + k).style.transform = 'scaleY(' + clamp(cd / ABIL[id].cd, 0, 1) + ')'; $('abil' + k).classList.toggle('wait', cd > 0); }
     document.body.classList.toggle('focus', S.focusOn);
     $('btnFocus').setAttribute('aria-pressed', String(focusBtn));
   }
@@ -871,8 +1201,9 @@
     ik.clearRect(0, 0, vw, vh);
     ik.lineCap = 'round';
     const line = (ax, ay, bx, by, a, w) => {
-      ik.strokeStyle = 'rgba(255,150,60,' + (a * 0.35).toFixed(3) + ')'; ik.lineWidth = w * 4; ik.beginPath(); ik.moveTo(ax, ay); ik.lineTo(bx, by); ik.stroke();
-      ik.strokeStyle = 'rgba(255,240,215,' + a.toFixed(3) + ')'; ik.lineWidth = w; ik.beginPath(); ik.moveTo(ax, ay); ik.lineTo(bx, by); ik.stroke();
+      ik.globalAlpha = a * 0.4; ik.strokeStyle = style.css; ik.lineWidth = w * 4; ik.beginPath(); ik.moveTo(ax, ay); ik.lineTo(bx, by); ik.stroke();
+      ik.globalAlpha = a; ik.strokeStyle = '#fff6ea'; ik.lineWidth = w; ik.beginPath(); ik.moveTo(ax, ay); ik.lineTo(bx, by); ik.stroke();
+      ik.globalAlpha = 1;
     };
     for (let i = INK.length - 1; i >= 0; i--) { const l = INK[i]; l.t += dt; const k = 1 - l.t / 0.28; if (k <= 0) INK.splice(i, 1); else line(l.ax, l.ay, l.bx, l.by, k * 0.9, 1 + k * 2.5); }
     if (swipe && Math.hypot(swipe.x - swipe.ax, swipe.y - swipe.ay) > 8) line(swipe.ax, swipe.ay, swipe.x, swipe.y, 0.75, 2);
@@ -916,26 +1247,32 @@
     if (S.focusOn) { P.focus -= dtR * P.drain; if (P.focus <= 0) { P.focus = 0; S.focusLock = true; focusBtn = false; } }
     else if (S.mode === 'play') P.focus = Math.min(1, P.focus + dtR * 0.045);
     S.slowT = Math.max(0, S.slowT - dtR);
-    const target = S.focusOn ? 0.1 : S.slowT > 0 ? 0.28 : 1;
+    const still = P.act && P.act.slow != null; // a technique that stops the world
+    const target = still ? P.act.slow : S.focusOn ? 0.1 : S.slowT > 0 ? 0.28 : 1;
     S.scale = lerp(S.scale, target, 1 - Math.exp(-dtR * (target < S.scale ? 30 : 7)));
-    S.focusK = lerp(S.focusK, S.focusOn ? 1 : 0, 1 - Math.exp(-dtR * 9));
+    S.focusK = lerp(S.focusK, S.focusOn || still ? 1 : 0, 1 - Math.exp(-dtR * 9));
     if ((S.scale < 0.5) !== S.muffled) { S.muffled = S.scale < 0.5; SFX.slow(S.scale); }
     let dt = dtR * S.scale;
     if (S.stop > 0) { S.stop -= dtR; dt = 0; }
     S.time += dt;
     SHARED.uTime.value = S.time;
-    if (S.mode !== 'title') {
+    if (S.mode !== 'title' || S.arsenal) {
+      updateDemo();
+      updateAct(dtR);
+      updateFlying(dtR * Math.max(S.scale, 0.35));
       updateHero(dtR * lerp(S.scale, 1, 0.62));
       if (!P.dead) poseHero(dtR);
       updateIdols(dt);
       updateWaves(dt);
     } else poseHero(dtR);
     updateBodies(dt);
-    SPARKS.step(dt + dtR * 0.02); DUST.step(dt); TRAILS.step(dtR);
+    SPARKS.step(dt + dtR * 0.02); DUST.step(dt); TRAILS.step(dtR, S.real); STREAKS.step(dtR, camera); GHOSTS.step(dtR);
     updateCamera(dtR);
     S.hurtK = Math.max(0, S.hurtK - dtR * 1.8);
     grade.uniforms.hurt.value = Math.max(S.hurtK, P.hp < 30 && !P.dead ? 0.25 + 0.12 * Math.sin(S.real * 5) : 0);
     grade.uniforms.calm.value = S.focusK;
+    S.flash = Math.max(0, S.flash - dtR * 7);
+    grade.uniforms.flash.value = CALM_MOTION ? 0 : S.flash;
     if (bannerT && S.real > bannerT) { $('banner').classList.remove('on'); bannerT = 0; }
     if (S.pending > 0 && S.mode === 'play' && !P.dead && S.slowT <= 0 && S.stop <= 0) openChoice();
     updateHud();
@@ -943,9 +1280,9 @@
   }
 
   // the title screen shows the place with a few things to look at
-  buildProps(); resetUps(); newHero();
+  buildProps(); resetUps(); newHero(); applyLoad(false);
   P.rig.root.visible = true;
   resize();
-  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
+  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, useAbility, arsenal, ABIL, STYLES, LOAD, applyLoad, waves, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();

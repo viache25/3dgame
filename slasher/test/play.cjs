@@ -20,14 +20,32 @@ const out = (n) => path.join(__dirname, '../out', n);
   await p.goto('http://local.test/');
   await p.waitForFunction(() => window.__game, null, { timeout: 90000 });
   const tag = process.env.PHONE ? 'phone-' : '';
+  let st, r;
   // the page's own clock is stopped, so only the test decides how much time passes and nothing moves between its steps
   await p.evaluate(() => { window.requestAnimationFrame = () => 0; });
   const shot = async (name) => { await p.evaluate(() => __game.frame()); await p.screenshot({ path: out(tag + name + '.png') }); };
   const run = (sec) => p.evaluate((s) => { for (let i = 0; i < Math.round(s * 60); i++) __game.step(1 / 60); }, sec);
   await shot('1-title');
+  // the arsenal: pick a style and a technique, each is tried on the practice idol at once, and the choice is kept
+  await p.click('#openArsenal');
+  await run(1.2);
+  await p.click('#optStyle .opt[data-id="violet"]');
+  await run(1.6);
+  await shot('1b-arsenal-style');
+  await p.click('#optSlot0 .opt[data-id="iai"]');
+  await run(0.45);
+  await shot('1c-arsenal-technique');
+  await run(1.6);
+  await p.click('#optSlot1 .opt[data-id="iai"]'); // the same technique in the other slot: the two swap
+  await run(1.6);
+  st = await p.evaluate(() => ({ load: JSON.stringify(__game.LOAD), kept: localStorage.getItem('blade-clay-loadout'), act: !!__game.P.act, mode: __game.S.mode, kills: __game.S.kills, pressed: document.querySelectorAll('#arsenal .opt[aria-pressed="true"]').length }));
+  assert.strictEqual(st.load, '{"style":"violet","slots":["wave","iai"]}', 'the choice is taken: ' + JSON.stringify(st));
+  assert(st.kept === st.load && !st.act && st.mode === 'title' && st.pressed === 3 && st.kills >= 1, 'kept, shown and tried: ' + JSON.stringify(st));
+  await p.click('#arsenalDone');
+  assert(await p.evaluate(() => !document.getElementById('title').hidden && document.getElementById('arsenal').hidden && !__game.enemies.length), 'back to the title, practice idol gone');
   await p.evaluate(() => { __game.begin(4242); __game.S.autoPick = true; window.clearIdols = () => { const g = __game; for (const e of g.enemies) if (!e.dead) { e.dead = true; if (e.rig.root.parent) e.rig.root.parent.remove(e.rig.root); } g.S.queue.length = 0; g.S.next = 1e9; }; window.risen = () => { const g = __game; for (let k = 0; k < 600; k++) { const e = g.enemies.find((x) => !x.dead && x.state !== 'rise'); if (e) return e; g.P.invul = 1; g.step(1 / 60); } throw new Error('no idol to cut'); }; });
   await run(2.6);
-  let st = await p.evaluate(() => ({ mode: __game.S.mode, idols: __game.enemies.length, bodies: __game.bodies.length }));
+  st = await p.evaluate(() => ({ mode: __game.S.mode, idols: __game.enemies.length, bodies: __game.bodies.length }));
   assert.strictEqual(st.mode, 'play'); assert(st.idols >= 2, 'idols have risen: ' + st.idols);
   await shot('2-wave');
   // stand next to an idol and cut across its chest
@@ -41,7 +59,7 @@ const out = (n) => path.join(__dirname, '../out', n);
     for (let i = 0; i < 8; i++) g.step(1 / 60);
     return { made: g.bodies.length - before, killed: g.S.kills - kills, parts: g.S.parts };
   }, [dy0, dy1]);
-  let r = await cutIdol(-30, 40);
+  r = await cutIdol(-30, 40);
   assert(r.killed === 1 && r.made >= 2, 'a cut through the chest fells the idol: ' + JSON.stringify(r));
   await run(0.25);
   await shot('3-cut');
@@ -175,6 +193,50 @@ const out = (n) => path.join(__dirname, '../out', n);
     return { dead: e.dead, moved: g.P.x - from };
   });
   assert(r.dead && r.moved > 2, 'a dash with the upgrade cuts through: ' + JSON.stringify(r));
+  // the four techniques, each against idols set out for it
+  await p.evaluate(() => {
+    const g = __game;
+    window.setOut = (slots, spots) => { // idols that stand still at given offsets from the wanderer, who is put back in the middle
+      clearIdols(); g.noMouse(); g.waves.length = 0;
+      g.LOAD.slots = slots; g.applyLoad(false);
+      g.P.x = 0; g.P.z = 0; g.P.yaw = 0; g.P.speed = 0; g.P.act = null; g.P.invul = 99; g.P.hp = g.P.maxHp; g.S.slowT = 0; g.S.stop = 0;
+      for (const id in g.P.cd) g.P.cd[id] = 0;
+      const out = spots.map(([x, z]) => { const e = g.spawnIdol('grunt'); e.x = x; e.z = z; e.speed = 0; e.dummy = true; e.range = -1; e.rig.root.position.set(x, -2 * e.scale, z); return e; });
+      for (let i = 0; i < 90; i++) { g.P.x = 0; g.P.z = 0; g.step(1 / 60); }
+      return out;
+    };
+    window.go = (sec) => { for (let i = 0; i < Math.round(sec * 60); i++) g.step(1 / 60); };
+  });
+  r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 3], [0.9, 3.6], [-0.8, 3.4]]), parts = g.S.parts; const ok = g.useAbility(0); go(0.45); return { ok, hidden: !g.P.rig.root.visible, scale: g.S.scale, mid: es.filter((e) => e.dead).length, parts: g.S.parts - parts, bodies: g.bodies.length }; });
+  assert(r.ok && r.hidden && r.scale < 0.1, 'thousand cuts: the wanderer is gone and the world stands still: ' + JSON.stringify(r));
+  await shot('9a-storm');
+  r = await p.evaluate(() => { const g = __game; go(1.4); return { act: !!g.P.act, shown: g.P.rig.root.visible, scale: g.S.scale, alive: g.enemies.filter((e) => !e.dead).length, bodies: g.bodies.length, z: g.P.z, cd: g.P.cd.storm }; });
+  assert(!r.act && r.shown && r.alive === 0 && r.z > 4 && r.cd > 10, 'thousand cuts: all three in pieces, the wanderer out the far side: ' + JSON.stringify(r));
+  assert(r.bodies < 700, 'the rubble is kept in bounds: ' + r.bodies);
+  await shot('9b-storm-after');
+  r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 5], [0.6, 9], [-0.7, 13]]); const ok = g.useAbility(1); go(0.3); const flying = g.waves.length; return { ok, flying, first: es[0].dead }; });
+  assert(r.ok && r.flying === 1, 'crescent: one is in the air: ' + JSON.stringify(r));
+  await shot('9c-wave');
+  r = await p.evaluate(() => { const g = __game; go(2.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, act: !!g.P.act }; });
+  assert(r.alive === 0 && r.flying === 0 && !r.act, 'crescent: it cut all three on its way and died out: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game, es = setOut(['spin', 'iai'], [[2.4, 0], [-2.2, 0.8], [0.3, -2.5], [0.5, 2.6], [7, 7]]); const ok = g.useAbility(0); go(0.25); return { ok }; });
+  await shot('9d-spin');
+  r = await p.evaluate(() => { const g = __game; go(0.6); return { near: g.enemies.filter((e) => !e.dead && Math.hypot(e.x, e.z) < 4).length, far: g.enemies.filter((e) => !e.dead).length, act: !!g.P.act }; });
+  assert(r.near === 0 && r.far === 1 && !r.act, 'whirl: everything within reach, nothing beyond: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game, es = setOut(['spin', 'iai'], [[0, 3], [0.4, 5.5], [-0.5, 8]]); const ok = g.useAbility(1); go(0.4); return { ok, z: g.P.z, deadBefore: es.filter((e) => e.dead).length, scale: g.S.scale }; });
+  assert(r.ok && r.z > 9 && r.deadBefore === 0 && r.scale < 0.1, 'strike through: past them at once, and nothing has fallen yet: ' + JSON.stringify(r));
+  await shot('9e-iai');
+  r = await p.evaluate(() => { const g = __game; go(0.6); return { alive: g.enemies.filter((e) => !e.dead).length, act: !!g.P.act }; });
+  assert(r.alive === 0 && !r.act, 'strike through: they fall when the blade is home: ' + JSON.stringify(r));
+  await run(0.5);
+  await shot('9f-iai-after');
+  // a technique is not ready again at once, and the keys reach it
+  r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.useAbility(0); go(0.7); const b = g.useAbility(0); return { a, b, cd: g.P.cd.spin }; });
+  assert(r.a && !r.b && r.cd > 5, 'cooldown: ' + JSON.stringify(r));
+  await p.evaluate(() => { __game.P.cd.iai = 0; });
+  await p.keyboard.press('KeyE');
+  assert(await p.evaluate(() => __game.P.act && __game.P.act.id === 'iai'), 'E calls the second technique');
+  await run(1.2);
   // lose on purpose
   await p.evaluate(() => { const g = __game; g.P.invul = 0; g.hurt(999, g.P.x + 1, g.P.z); for (let i = 0; i < 40; i++) g.step(1 / 60); });
   st = await p.evaluate(() => __game.S.mode);

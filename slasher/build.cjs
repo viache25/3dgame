@@ -3,7 +3,7 @@
 const fs = require('fs'), path = require('path');
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.147.0/';
 const libs = ['build/three.min.js', 'examples/js/shaders/CopyShader.js', 'examples/js/shaders/LuminosityHighPassShader.js', 'examples/js/postprocessing/EffectComposer.js', 'examples/js/postprocessing/RenderPass.js', 'examples/js/postprocessing/ShaderPass.js', 'examples/js/postprocessing/UnrealBloomPass.js'];
-const src = ['geo', 'phys', 'render', 'models', 'world', 'audio', 'game'].map((n) => fs.readFileSync(path.join(__dirname, 'src', n + '.js'), 'utf8')).join('\n');
+const src = ['geo', 'phys', 'render', 'fx', 'models', 'world', 'audio', 'game'].map((n) => fs.readFileSync(path.join(__dirname, 'src', n + '.js'), 'utf8')).join('\n');
 const scripts = libs.map((l) => `<script src="${CDN}${l}"></script>`).join('\n') + `\n<script>\n${src}\n</script>`;
 const html = fs.readFileSync(path.join(__dirname, 'src/page.html'), 'utf8').replace('__SCRIPTS__', () => scripts);
 fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });

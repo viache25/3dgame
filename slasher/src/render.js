@@ -9,7 +9,8 @@ const PAL = [
   0x12142a, 0x4b4458, 0xc9a044, 0xe8dcc0, // 16 dark wraps, 17 basalt, 18 gold, 19 bone paint
   0x2a2233, 0xd9935a, 0x8a4a34,           // 20 basalt inside, 21 pale clay (imps), 22 old clay (the colossus)
 ].map(lin);
-const SHARED = { uTime: { value: 0 } };
+// uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
+const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };
 
 function partGeometry(pieces) {
   let tris = 0;
@@ -41,12 +42,13 @@ function partGeometry(pieces) {
 const PART_MAT = (function () {
   const m = new T.MeshLambertMaterial({ vertexColors: true });
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = SHARED.uTime;
+    sh.uniforms.uTime = SHARED.uTime; sh.uniforms.uHotA = SHARED.uHotA; sh.uniforms.uHotB = SHARED.uHotB;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 aCut;\nvarying vec2 vCut;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCut = aCut;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec2 vCut;').replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform vec3 uHotA, uHotB;\nvarying vec2 vCut;').replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       if (vCut.y > 0.0) {
-        float age = vCut.x > 9.0e5 ? 0.45 : max(uTime - vCut.x, 0.0);
-        vec3 hot = mix(vec3(1.0, 0.1, 0.01), vec3(1.0, 0.45, 0.1), exp(-age * 1.4));
+        bool blade = vCut.x > 1.5e6, ember = vCut.x > 9.0e5 && !blade; // the blade itself, and fire that is the idol's own
+        float age = (blade || ember) ? 0.45 : max(uTime - vCut.x, 0.0);
+        vec3 hot = mix(ember ? vec3(1.0, 0.1, 0.01) : uHotB, ember ? vec3(1.0, 0.45, 0.1) : uHotA, exp(-age * 1.4));
         totalEmissiveRadiance += hot * vCut.y * (2.6 * exp(-age * 0.55) + 0.5 * exp(-age * 0.1));
       }`);
   };
@@ -95,44 +97,6 @@ function makeDots(scene, max, additive) {
         size[i] = size0[i] * (additive ? 0.35 + 0.65 * k : 1 + (1 - k) * 1.6);
       }
       g.attributes.position.needsUpdate = true; g.attributes.aCol.needsUpdate = true; g.attributes.aSize.needsUpdate = true;
-    },
-  };
-}
-
-// The light the blade leaves behind: a fan in the plane of the cut that opens with the swing and fades.
-function makeTrails(scene, count) {
-  const SEG = 22, list = [];
-  const mat = new T.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, fog: false });
-  for (let i = 0; i < count; i++) {
-    const g = new T.BufferGeometry(), pos = new Float32Array((SEG + 1) * 6), col = new Float32Array((SEG + 1) * 6), idx = [];
-    for (let s = 0; s < SEG; s++) { const a = s * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('color', new T.BufferAttribute(col, 3)); g.setIndex(idx);
-    const mesh = new T.Mesh(g, mat);
-    mesh.frustumCulled = false; mesh.visible = false; mesh.renderOrder = 7;
-    scene.add(mesh);
-    list.push({ mesh, pos, col, age: 9, o: null });
-  }
-  let next = 0;
-  return {
-    // o: { px,py,pz (pivot), fx,fy,fz (middle of the swing), sx,sy,sz (side the swing goes to), a0, a1, r0, r1, T (swing time) }
-    add(o) { const t = list[next]; next = (next + 1) % count; t.o = o; t.age = 0; t.mesh.visible = true; return t; },
-    step(dt) {
-      for (const t of list) {
-        if (!t.mesh.visible) continue;
-        t.age += dt;
-        const o = t.o, open = Math.min(1, t.age / o.T), fade = Math.max(0, 1 - Math.max(0, t.age - o.T) / 0.2);
-        if (fade <= 0) { t.mesh.visible = false; continue; }
-        for (let s = 0; s <= SEG; s++) {
-          const u = s / SEG, a = o.a0 + (o.a1 - o.a0) * u * open, c = Math.cos(a), sn = Math.sin(a);
-          const dx = o.fx * c + o.sx * sn, dy = o.fy * c + o.sy * sn, dz = o.fz * c + o.sz * sn, i = s * 6;
-          t.pos[i] = o.px + dx * o.r0; t.pos[i + 1] = o.py + dy * o.r0; t.pos[i + 2] = o.pz + dz * o.r0;
-          t.pos[i + 3] = o.px + dx * o.r1; t.pos[i + 4] = o.py + dy * o.r1; t.pos[i + 5] = o.pz + dz * o.r1;
-          const lead = Math.pow(u, 2.2) * fade; // brightest at the blade, dim where it has been
-          t.col[i] = 0.35 * lead; t.col[i + 1] = 0.09 * lead; t.col[i + 2] = 0.02 * lead;
-          t.col[i + 3] = 1.7 * lead; t.col[i + 4] = 0.62 * lead; t.col[i + 5] = 0.14 * lead;
-        }
-        t.mesh.geometry.attributes.position.needsUpdate = true; t.mesh.geometry.attributes.color.needsUpdate = true;
-      }
     },
   };
 }

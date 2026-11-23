@@ -5,7 +5,7 @@
 /* layout: the picture fills the screen; the HUD sits in its corners, and the start, pause and end sheets lie along the left edge so the scene stays in view */
 :root {
   --night: #170f20; --plate: rgba(23, 15, 32, 0.78); --line: rgba(255, 196, 140, 0.28);
-  --ink: #fff2e0; --dim: #dcbfa4; --ember: #ff8a3c; --blade: #ffe1b0; --blood: #e2473d; --cool: #9fc4ff; --gold: #f2c14e;
+  --style: #ff8a3c; --ink: #fff2e0; --dim: #dcbfa4; --ember: #ff8a3c; --blade: #ffe1b0; --blood: #e2473d; --cool: #9fc4ff; --gold: #f2c14e;
   --display: "Dela Gothic One", "Arial Black", Impact, "Segoe UI", sans-serif;
   --ui: "Golos Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color-scheme: dark;
@@ -39,7 +39,8 @@ body { background: var(--night); color: var(--ink); font-family: var(--ui); over
 #hint { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding-block: 26px 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink); text-wrap: balance; background: linear-gradient(transparent, rgba(23, 15, 32, 0.8)); pointer-events: none; transition: opacity 0.8s; }
 #hint.gone { opacity: 0; }
 body.touch .for-keys, body:not(.touch) .for-touch { display: none; }
-body.touch #hint { bottom: calc(104px + env(safe-area-inset-bottom, 0px)); padding-block: 0; background: none; text-shadow: 0 1px 4px var(--night), 0 0 12px var(--night); }
+body:not(.touch) #hint { padding-bottom: 66px; }
+body.touch #hint { top: 96px; bottom: auto; padding-block: 0; background: none; text-shadow: 0 1px 4px var(--night), 0 0 12px var(--night); }
 
 #stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid var(--line); background: rgba(23, 15, 32, 0.3); pointer-events: none; }
 #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: var(--blade); opacity: 0.85; }
@@ -57,6 +58,34 @@ body.touch .pads { display: flex; }
 .keys b { color: var(--ink); font-weight: 800; }
 .go { font-family: var(--display); font-size: 20px; line-height: 1; color: var(--night); background: var(--ember); border: 0; padding: 16px 30px 15px; cursor: pointer; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); transition: background 0.15s, transform 0.15s; }
 .go:hover { background: var(--blade); transform: translateX(3px); }
+.go.quiet { color: var(--ink); background: var(--plate); box-shadow: inset 0 0 0 2px var(--style); }
+.go.quiet:hover { background: rgba(52, 33, 58, 0.95); }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* the two techniques: chips at the bottom with a key each, round pads under the thumb on a phone; a shade drains off as one comes ready */
+.abils { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 10px; padding-block: 0 14px; pointer-events: none; }
+.abil { pointer-events: auto; position: relative; overflow: hidden; display: flex; align-items: center; gap: 9px; min-width: 150px; padding: 9px 12px; font: 800 12px var(--ui); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); background: var(--plate); border: 1px solid var(--style); cursor: pointer; touch-action: none; }
+.abil kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 2px 7px; }
+.abil i { position: absolute; inset: 0; background: rgba(23, 15, 32, 0.82); transform-origin: 50% 100%; transform: scaleY(0); pointer-events: none; }
+.abil.wait { color: var(--dim); border-color: var(--line); }
+body.touch .abils { left: auto; bottom: calc(108px + env(safe-area-inset-bottom, 0px)); gap: 12px; padding-block: 0; }
+body.touch .abil { width: 74px; height: 74px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; border-width: 2px; font-size: 11px; letter-spacing: 0.03em; }
+
+/* the arsenal: three shelves of choices; what is chosen carries the colour of the blade */
+#arsenal { justify-content: flex-start; gap: 9px; }
+#arsenal h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 4.6vw, 48px); line-height: 1; color: var(--ink); }
+#arsenal h3 { margin: 4px 0 0; font: 800 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+#arsenal h3 kbd { font: 800 11px var(--ui); color: var(--night); background: var(--style); padding: 1px 6px; }
+#arsenal > .opts { width: 100%; max-width: min(540px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+#arsenal > #optStyle { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#optStyle .opt span { display: none; }
+.opt { position: relative; display: grid; align-content: start; gap: 2px; min-width: 0; text-align: left; padding: 8px 10px 8px 14px; font: 12px/1.3 var(--ui); color: var(--dim); background: var(--plate); border: 1px solid var(--line); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.opt b { font: 800 14px/1.2 var(--ui); color: var(--ink); }
+.opt i { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+.opt:hover { border-color: var(--ink); }
+.opt[aria-pressed="true"] { border-color: var(--style); background: rgba(52, 33, 58, 0.95); box-shadow: inset 0 0 0 1px var(--style); }
+.opt[aria-pressed="true"] b { color: var(--style); }
+#arsenal .note { font-size: 13px; }
 button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
 #levelup { align-items: center; text-align: center; gap: 14px; background: rgba(23, 15, 32, 0.8); }
 #levelup h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(30px, 5.4vw, 56px); line-height: 1; color: var(--gold); text-shadow: 0 0 30px rgba(242, 193, 78, 0.5); }
@@ -70,9 +99,12 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
 @media (max-width: 560px) {
   .sheet { background: linear-gradient(180deg, rgba(23, 15, 32, 0.9), rgba(23, 15, 32, 0.72)); }
   #levelup > #cards { grid-template-columns: 1fr; } .card { padding: 13px 14px; gap: 4px; }
+  /* on a phone the arsenal takes the lower part of the screen and the practice idol stays in view above it */
+  #arsenal { inset: 34% 0 0 0; padding-block: 14px; background: linear-gradient(180deg, rgba(23, 15, 32, 0.55), rgba(23, 15, 32, 0.96) 12%); }
+  .opt span { display: none; } .opt { padding-block: 9px; } #arsenal > #optStyle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats { gap: 12px; } .stat b { font-size: 18px; } #sound { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint, .card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint, .card, .opt { transition: none; } }
 </style>
 <div id="stage">
   <canvas id="gl"></canvas>
@@ -93,6 +125,10 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
   <div id="banner" class="gutter"></div>
   <p id="hint" class="gutter gone"><span class="for-keys">Проведи мышью по врагу: разрез пройдёт по этой линии. WASD — бег, пробел — рывок, Shift — замедлить время.</span><span class="for-touch">Проведи пальцем по врагу: разрез пройдёт по этой линии. Левый палец ведёт героя.</span></p>
   <div id="stick" hidden><div id="knob"></div></div>
+  <div class="abils gutter" id="abils" hidden>
+    <button class="abil" id="abil0" type="button"><kbd class="for-keys">Q</kbd><span id="abilName0"></span><i id="abilCd0"></i></button>
+    <button class="abil" id="abil1" type="button"><kbd class="for-keys">E</kbd><span id="abilName1"></span><i id="abilCd1"></i></button>
+  </div>
   <div class="pads gutter">
     <button class="pad" id="btnFocus" type="button" aria-pressed="false">Фокус</button>
     <button class="pad" id="btnDash" type="button">Рывок</button>
@@ -105,14 +141,16 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
       <li><b>Щелчок</b> — быстрый удар по ближнему</li>
       <li><b>WASD</b> — бег, <b>пробел</b> — рывок</li>
       <li><b>Shift</b> или правая кнопка — замедлить время и рубить на куски</li>
+      <li><b>Q</b> и <b>E</b> — приёмы, бьют туда, где мышь</li>
     </ul>
     <ul class="keys for-touch">
       <li><b>Провести пальцем</b> — разрез по этой линии</li>
       <li><b>Коснуться</b> — быстрый удар по ближнему</li>
       <li><b>Левый палец</b> ведёт героя</li>
       <li><b>Фокус</b> замедляет время, <b>Рывок</b> уводит из-под удара</li>
+      <li>Две верхние кнопки — приёмы, бьют по ближнему</li>
     </ul>
-    <button class="go" id="start" type="button">В бой</button>
+    <div class="row"><button class="go" id="start" type="button">В бой</button><button class="go quiet" id="openArsenal" type="button">Арсенал</button></div>
   </div>
   <div id="dead" class="sheet gutter" hidden>
     <h1>Клинок <em>остыл</em></h1>
@@ -124,9 +162,19 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <p>Клинок чему-то научился. Выбери одно.</p>
     <div id="cards"></div>
   </div>
+  <div id="arsenal" class="sheet gutter" hidden>
+    <h2>Арсенал</h2>
+    <h3>Стиль клинка</h3>
+    <div class="opts" id="optStyle"></div>
+    <h3>Приём <kbd class="for-keys">Q</kbd><span class="for-touch">первый</span></h3>
+    <div class="opts" id="optSlot0"></div>
+    <h3>Приём <kbd class="for-keys">E</kbd><span class="for-touch">второй</span></h3>
+    <div class="opts" id="optSlot1"></div>
+    <button class="go" id="arsenalDone" type="button">Готово</button>
+  </div>
   <div id="pause" class="sheet gutter" hidden>
     <h1>Пауза</h1>
-    <button class="go" id="resume" type="button">Дальше</button>
+    <div class="row"><button class="go" id="resume" type="button">Дальше</button><button class="go quiet" id="pauseArsenal" type="button">Арсенал</button></div>
   </div>
   <div id="fail" class="gutter" hidden>Этому браузеру не хватает WebGL. Откройте страницу в свежем Chrome, Safari или Firefox.</div>
 </div>
