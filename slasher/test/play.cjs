@@ -246,18 +246,15 @@ const out = (n) => path.join(__dirname, '../out', n);
     };
     window.go = (sec) => { for (let i = 0; i < Math.round(sec * 60); i++) g.step(1 / 60); };
   });
-  r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 3], [0.9, 3.6], [-0.8, 3.4]]); const ok = g.cast(slots[0]); go(0.45); return { ok, shown: g.P.rig.root.visible, scale: g.S.scale, went: Math.hypot(g.P.x, g.P.z), steps: g.P.act && g.P.act.step }; });
-  assert(r.ok && r.shown && r.scale < 0.1 && r.went > 6 && r.steps >= 4, 'thousand cuts: the world stands still and he is carried across it cut by cut: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 3], [0.9, 3.6], [-0.8, 3.4]]), parts = g.S.parts; const ok = g.cast(slots[0]); go(0.45); return { ok, hidden: !g.P.rig.root.visible, scale: g.S.scale, mid: es.filter((e) => e.dead).length, parts: g.S.parts - parts, bodies: g.bodies.length }; });
+  assert(r.ok && r.hidden && r.scale < 0.1, 'thousand cuts: the wanderer is gone and the world stands still: ' + JSON.stringify(r));
   await shot('9a-storm');
-  r = await p.evaluate(() => { const g = __game; go(1.6); return { act: !!g.P.act, scale: g.S.scale, alive: g.enemies.filter((e) => !e.dead).length, bodies: g.bodies.length, z: g.P.z, cd: g.P.cd.storm, cool: g.COOL }; });
-  assert(!r.act && r.alive === 0 && r.z > 4 && (r.cool ? r.cd > 10 : r.cd === 0), 'thousand cuts: all three in pieces behind him: ' + JSON.stringify(r));
+  r = await p.evaluate(() => { const g = __game; go(1.4); return { act: !!g.P.act, shown: g.P.rig.root.visible, scale: g.S.scale, alive: g.enemies.filter((e) => !e.dead).length, bodies: g.bodies.length, z: g.P.z, cd: g.P.cd.storm, cool: g.COOL }; });
+  assert(!r.act && r.shown && r.alive === 0 && r.z > 4 && (r.cool ? r.cd > 10 : r.cd === 0), 'thousand cuts: all three in pieces, the wanderer out the far side: ' + JSON.stringify(r));
   assert(r.bodies < 700, 'the rubble is kept in bounds: ' + r.bodies);
-  // and it goes where it is steered: with D held, to the right
-  await p.keyboard.down('KeyD');
-  r = await p.evaluate(() => { const g = __game; setOut(['storm'], []); g.cast('storm'); go(0.5); return { x: g.P.x, z: g.P.z }; });
-  await p.keyboard.up('KeyD');
-  assert(r.x > 8 && Math.abs(r.z) < 0.5, 'thousand cuts follows the keys: ' + JSON.stringify(r));
-  await p.evaluate(() => { go(1.5); });
+  // and it reaches as far as the cursor is: synths 16 m off are cut, and he comes out beyond them
+  r = await p.evaluate(() => { const g = __game; setOut(['storm'], [[0.3, -16], [-0.5, -16.6]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(0, 0, -16).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; });
+  if (!process.env.PHONE) { assert(r[1] > 5 && r[1] < 700, 'the far spot is on the screen: ' + r); await p.mouse.move(r[0], r[1]); await p.keyboard.press('Digit2'); await run(2); st = await p.evaluate(() => ({ z: __game.P.z, alive: __game.enemies.filter((e) => !e.dead).length })); assert(st.z < -15 && st.alive === 0, 'thousand cuts reaches the far cursor: ' + JSON.stringify(st)); await p.evaluate(() => __game.noMouse()); }
   await shot('9b-storm-after');
   r = await p.evaluate(() => { const g = __game, es = setOut(['storm', 'wave'], [[0, 5], [0.6, 9], [-0.7, 13]]); const ok = g.cast(slots[1]); go(0.3); const flying = g.waves.length; return { ok, flying, first: es[0].dead }; });
   assert(r.ok && r.flying === 1, 'crescent: one is in the air: ' + JSON.stringify(r));

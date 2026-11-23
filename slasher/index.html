@@ -2678,7 +2678,7 @@ const SFX = (function () {
 
   // ---- techniques: two are worn at a time, chosen in the arsenal
   const ABIL = {
-    storm: { name: 'Тысяча срезов', short: 'Срезы', text: 'Двенадцать рывков-срезов подряд: тебя проносит по полю за курсором или туда, куда жмёшь WASD. Всё на пути распадается, когда клинок входит в ножны', cd: 14 },
+    storm: { name: 'Тысяча срезов', short: 'Срезы', text: 'Исчезаешь и появляешься там, где курсор, хоть через пол-арены: всё вокруг той точки изрублено раньше, чем успело упасть', cd: 14 },
     wave: { name: 'Полумесяц', short: 'Месяц', text: 'Срез срывается с клинка и летит вперёд, разрезая всё на пути', cd: 6 },
     spin: { name: 'Вихрь', short: 'Вихрь', text: 'Огненный смерч: пять оборотов, врагов тянет под клинок, срезы идут на всех высотах, в конце удар в землю. Во время вихря можно бежать', cd: 3.5 },
     iai: { name: 'Удар сквозь', short: 'Сквозь', text: 'Проносишься насквозь. Всё распадается, когда клинок входит в ножны', cd: 9 },
@@ -2730,7 +2730,13 @@ const SFX = (function () {
     const a = P.act = { id, t: 0, ax, az, x0: P.x, z0: P.z, made: 0, kills: S.kills, hidden: false, pose: null, slow: null, step: 0 };
     P.cd[id] = COOL ? ABIL[id].cd : 0; P.invul = Math.max(P.invul, 1.5); P.stance = 1; P.front = 1;
     if (id === 'storm') {
-      a.slow = 0.04; a.cuts = 12; a.next = 0.1; a.path = [[P.x, P.z]];
+      // the middle of it: the nearest idol in front, or a spot a few steps ahead
+      const mg = mouseGround(), md = mg ? Math.hypot(mg[0] - P.x, mg[1] - P.z) : 0, far = Math.min(md, 22); // at the cursor, if there is one, however far
+      const cx = mg && md > 0.3 ? P.x + (mg[0] - P.x) / md * far : P.x + ax * 2.6, cz = mg && md > 0.3 ? P.z + (mg[1] - P.z) / md * far : P.z + az * 2.6;
+      let bd = mg ? 2.2 : 4.4;
+      for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - cx, e.z - cz); if (d < bd) { bd = d; a.c = [e.x, Math.min(1.7, 1.05 * e.scale), e.z]; } }
+      if (!a.c) a.c = [cx, 1.1, cz];
+      a.slow = 0.04; a.cuts = 12; a.next = 0.13;
       SFX.focus(true);
     } else if (id === 'wave') {
       const tilt = P.flip++ % 2 ? 0.5 : -0.5, n = new T.Vector3(az * Math.sin(tilt), Math.cos(tilt), -ax * Math.sin(tilt)), f = new T.Vector3(ax, 0, az), s = new T.Vector3().crossVectors(n, f), pv = new T.Vector3(P.x, 1.25, P.z);
@@ -2787,42 +2793,34 @@ const SFX = (function () {
     if (P.dead) { endAct(); return; }
     a.t += dt;
     if (a.id === 'storm') {
+      const c = a.c;
+      if (a.t > 0.1 && a.step < a.cuts) a.hidden = true;
       while (a.step < a.cuts && a.t >= a.next) {
-        a.next += 0.06; a.step++;
-        // each cut is a dash of its own. Which way: the keys if any is held, else toward the cursor; on the cursor itself, back and forth across it
-        let dx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0), dz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0), len = 3.2;
-        if (dx || dz) { const l = Math.hypot(dx, dz); dx /= l; dz /= l; }
-        else {
-          const mg = mouseGround(), d = mg ? Math.hypot(mg[0] - P.x, mg[1] - P.z) : 0;
-          if (mg && d > 0.7) { dx = (mg[0] - P.x) / d; dz = (mg[1] - P.z) / d; len = Math.min(3.2, d); }
-          else if (mg) { const g = rnd() * 6.28; dx = Math.cos(g); dz = Math.sin(g); len = 2.4; }
-          else { const d2 = aimDir(); dx = d2[0]; dz = d2[1]; }
-        }
-        const x0 = P.x, z0 = P.z;
-        P.x += dx * len; P.z += dz * len; keepIn(); P.yaw = Math.atan2(dx, dz); P.stance = 1;
-        const L = Math.hypot(P.x - x0, P.z - z0) || 0.01, ux = (P.x - x0) / L, uz = (P.z - z0) / L, u = new T.Vector3(ux, 0, uz), want = strip(x0, z0, ux, uz, L, 1.9, 3.4);
+        a.next += 0.05; a.step++;
+        // a plane at any angle through the middle of it
+        let nx, ny, nz, l;
+        do { nx = rnd() * 2 - 1; ny = rnd() * 2 - 1; nz = rnd() * 2 - 1; l = Math.hypot(nx, ny, nz); } while (l > 1 || l < 0.2);
+        const n = new T.Vector3(nx / l, ny / l, nz / l), u = new T.Vector3(rnd() - 0.5, (rnd() - 0.5) * 0.6, rnd() - 0.5);
+        u.addScaledVector(n, -u.dot(n)).normalize();
+        const px = c[0] + (rnd() - 0.5) * 0.9, py = Math.max(0.25, c[1] + (rnd() - 0.5) * 0.9), pz = c[2] + (rnd() - 0.5) * 0.9;
+        const want = (x, y, z, r) => { const dx = x - c[0], dy = y - c[1], dz = z - c[2], lim = 3.3 + r * 0.5; return dx * dx + dy * dy + dz * dz < lim * lim; };
         CUT.minPiece = 1.4e-3; // crumbs smaller than a fist are left alone, or there would be thousands
-        for (const tilt of [(rnd() - 0.5) * 0.4, (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.9)]) { // one cut nearly flat and one steep, both along the dash
-          const n = new T.Vector3(-uz * Math.sin(tilt), Math.cos(tilt), ux * Math.sin(tilt));
-          a.made += cutAll({ n, d: n.x * x0 + n.y * 1.05 + n.z * z0, u }, want, (x0 + P.x) / 2, (z0 + P.z) / 2, L / 2 + 2.1);
-        }
+        a.made += cutAll({ n, d: n.x * px + n.y * py + n.z * pz, u }, want, c[0], c[2], 3.3);
         CUT.minPiece = 2.5e-4;
-        STREAKS.add(x0 - ux * 1.3, 1.05, z0 - uz * 1.3, P.x + ux * 1.3, 1.05, P.z + uz * 1.3, 0.13, 0.6, 0.04, style.trailA);
-        ghostAt(x0, z0, P.yaw, 0.45);
-        fire((x0 + P.x) / 2, 0.7, (z0 + P.z) / 2, 0.9, 0.5, { gain: 1.1 });
-        a.path.push([P.x, P.z]);
+        STREAKS.add(px - u.x * 4.4, py - u.y * 4.4, pz - u.z * 4.4, px + u.x * 4.4, py + u.y * 4.4, pz + u.z * 4.4, 0.1, 0.5, 0.045, style.trailA);
+        for (const o of [-1.4, 0, 1.4]) fire(px + u.x * o, Math.max(0.05, py + u.y * o - 0.3), pz + u.z * o, 0.8, 0.5, { gain: 1.1 });
+        ghostAt(px - u.x * 1.6, pz - u.z * 1.6, Math.atan2(u.x, u.z), 0.32);
         SFX.flurry(a.step);
         S.shake = Math.max(S.shake, 0.25);
       }
-      if (a.step >= a.cuts && !a.landed && a.t >= a.next + 0.02) { a.landed = true; a.pose = 'sheath'; a.sheath = 0; a.from = a.t; } // there, and already putting the blade away
+      if (a.step >= a.cuts && !a.landed && a.t >= a.next + 0.02) { // out the far side, already putting the blade away
+        a.landed = true; a.hidden = false; a.pose = 'sheath'; a.sheath = 0; a.from = a.t;
+        P.x = c[0] + a.ax * 2.7; P.z = c[2] + a.az * 2.7; keepIn();
+        P.yaw = Math.atan2(a.ax, a.az);
+      }
       if (a.landed) {
         a.sheath = (a.t - a.from) / 0.42;
-        if (!a.clicked && a.t >= a.from + 0.45) { // the blade is home: everything along the way he came lets go and goes up
-          a.clicked = true; a.slow = null; SFX.sheath(); SFX.erupt(); S.flash = 1; S.kick = 1; S.shake = Math.max(S.shake, 0.7);
-          for (let i = 1; i < a.path.length; i++) { const p = a.path[i - 1], q = a.path[i], l = Math.hypot(q[0] - p[0], q[1] - p[1]); fireLine(p[0], p[1], q[0], q[1], Math.ceil(l * 1.3) + 1, 1.5, 0.8, 0.05, 0.6); SCORCH.add((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, l / 2 + 0.3, 0.6, 4.5, 0.9, (q[0] - p[0]) / (l || 1), (q[1] - p[1]) / (l || 1)); }
-          FLARES.add(P.x, 1.4, P.z, style.trailA, 10, 0.7, 20);
-          if (a.made) scored(a.made, a.kills);
-        }
+        if (!a.clicked && a.t >= a.from + 0.45) { a.clicked = true; a.slow = null; SFX.sheath(); SFX.erupt(); S.flash = 1; S.kick = 1; S.shake = Math.max(S.shake, 0.7); blaze(c[0], 0.6, c[2], 14, 1.3, 11); fireRing(c[0], c[2], 2.3, 12, 1.4, 0.8, 0.03); fire(c[0], 0.03, c[2], 3.6, 0.7, { gain: 1.3, keep: true }); if (a.made) scored(a.made, a.kills); }
         if (a.t >= a.from + 0.7) endAct();
       }
     } else if (a.id === 'wave') {
