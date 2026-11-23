@@ -104,7 +104,9 @@ const out = (n) => path.join(__dirname, '../out', n);
     await run(0.4);
     st = await p.evaluate(() => ({ kills: __game.S.kills, x: __game.P.x, stick: !document.getElementById('stick').hidden }));
     assert(st.kills === r.kills + 1, 'a finger swipe cuts: ' + JSON.stringify(st));
-    assert(st.stick && st.x > r.px + 1, 'the left thumb runs the wanderer: ' + JSON.stringify(st));
+    await run(0.4); // the swipe took him to where it began; the thumb, still down, goes on running him from there
+    r = await p.evaluate(() => __game.P.x);
+    assert(st.stick && r > st.x + 1, 'the left thumb runs the wanderer: ' + JSON.stringify(st) + ' then ' + r);
     await touch('touchEnd', [{ x: 130, y: 600, id: 1 }]);
     assert(await p.evaluate(() => document.getElementById('stick').hidden), 'lifting the thumb lets go of the stick');
     await p.evaluate(() => { __game.P.invul = 0; });
@@ -342,10 +344,18 @@ const out = (n) => path.join(__dirname, '../out', n);
   await run(1.2);
   // the mouse draws a cut; it does not carry the wanderer about. A stroke across a synth beside him cuts it and he stays where he stood
   r = await p.evaluate(() => { const g = __game, es = setOut([], [[1.7, 0.3]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(es[0].x, 1.1 * es[0].scale, es[0].z).project(g.camera); return { x: (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y: (0.5 - v.y * 0.5) * g.canvas.clientHeight, kills: g.S.kills }; });
-  await p.mouse.move(r.x - 110, r.y - 30); await p.mouse.down(); await p.mouse.move(r.x, r.y, { steps: 3 }); await p.mouse.move(r.x + 110, r.y + 35, { steps: 3 }); await p.mouse.up(); await run(0.3);
+  // a stroke drawn across a synth that stands well off: he goes to where the button went down, and cuts from there
+  r = await p.evaluate(() => { const g = __game, es = setOut([], [[5.5, 0.3]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const at = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; }; return { a: at(4.3, 0, 0.9), m: at(5.5, 1.1, 0.3), kills: g.S.kills }; });
+  await p.mouse.move(r.a[0], r.a[1]); await p.mouse.down(); await p.mouse.move(r.m[0], r.m[1], { steps: 3 }); await p.mouse.move(2 * r.m[0] - r.a[0], 2 * r.m[1] - r.a[1], { steps: 3 }); await p.mouse.up(); await run(0.3);
   await shot('9l-stroke');
-  st = await p.evaluate(() => ({ kills: __game.S.kills, moved: Math.hypot(__game.P.x, __game.P.z), fires: __game.FIRES.count() }));
-  assert(st.kills === r.kills + 1 && st.moved < 1.2 && st.fires > 3, 'a stroke cuts along its line, sets what it cut alight, and he stays put: ' + JSON.stringify(st));
+  st = await p.evaluate(() => ({ kills: __game.S.kills, off: Math.hypot(__game.P.x - 4.3, __game.P.z - 0.9), fires: __game.FIRES.count() }));
+  assert(process.env.PHONE || (st.kills === r.kills + 1 && st.off < 0.5 && st.fires > 3), 'a stroke takes him to where it began and cuts along its line: ' + JSON.stringify(st));
+  // a click is a blow from where he stands: he goes nowhere, however far the cursor is
+  r = await p.evaluate(() => { const g = __game; setOut([], []); for (let i = 0; i < 30; i++) g.step(1 / 60); g.tapSlash(g.canvas.clientWidth * 0.8, g.canvas.clientHeight * 0.3); go(0.4); return { moved: Math.hypot(g.P.x, g.P.z), swung: g.S.real - g.P.nextSlash < 1 }; });
+  assert(r.moved < 0.05 && r.swung, 'a click strikes in place: ' + JSON.stringify(r));
+  // the dash: far and fast, and nothing touches him in it
+  r = await p.evaluate(() => { const g = __game; setOut([], []); g.noMouse(); g.P.yaw = Math.PI / 2; g.P.speed = 0; g.P.dashCd = 0; g.P.invul = 0; g.dash(); const hp = g.P.hp; g.hurt(30, g.P.x - 1, g.P.z); go(0.3); return { x: g.P.x, len: g.P.dashLen, safe: g.P.hp === hp }; });
+  assert(r.x > r.len - 0.2 && r.x < r.len + 0.9 && r.len > 5 && r.safe, 'the dash covers its whole length, with a little run-out, and cannot be hit: ' + JSON.stringify(r));
   // the flame: cutting stokes it, and left alone it dies back down; it never locks the blade
   r = await p.evaluate(() => {
     const g = __game, es = setOut([], [[1.7, 0.3], [-1.7, 0.3]]);
