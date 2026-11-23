@@ -306,7 +306,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game; setOut(['leap', 'fan'], [[0, 5], [0.8, 9], [-0.9, 13], [0.3, 17]]); g.LOAD.ult = 'saw'; g.applyLoad(false); g.S.ult = 1; const used = g.useUlt(); go(0.9); return { used, flying: g.waves.length }; });
   assert(r.used && r.flying === 1, 'saw: it is rolling: ' + JSON.stringify(r));
   await shot('9k-saw');
-  r = await p.evaluate(() => { const g = __game; go(2.6); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, bodies: g.bodies.length }; });
+  r = await p.evaluate(() => { const g = __game; go(4.2); return { alive: g.enemies.filter((e) => !e.dead).length, flying: g.waves.length, bodies: g.bodies.length }; }); // each kill holds the world for a moment, so the roll takes longer than its distance alone
   assert(r.alive === 0 && r.flying === 0 && r.bodies < 800, 'saw: the whole line is in blocks: ' + JSON.stringify(r));
   // a technique is not ready again at once, and the keys reach it
   r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(0.7); const b = g.cast(slots[0]); return { a, b, cd: g.P.cd.spin }; });
