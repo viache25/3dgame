@@ -56,7 +56,7 @@
   });
   composer.addPass(grade);
 
-  const SPARKS = makeDots(scene, 1100, true), DUST = makeDots(scene, 260, false), TRAILS = makeTrails(scene, 14), STREAKS = makeStreaks(scene, 110), GHOSTS = makeGhosts(scene);
+  const SPARKS = makeDots(scene, 1100, true), DUST = makeDots(scene, 260, false), TRAILS = makeTrails(scene, 14), STREAKS = makeStreaks(scene, 110), GHOSTS = makeGhosts(scene), RIBBON = makeRibbon(scene, 40);
 
   // ---- the look of the blade: what it leaves in the air and on whatever it opens
   const STYLES = [
@@ -91,7 +91,7 @@
   const STANDOFF = 1.35, ARENA = 38, TOP = 3.0, MAX_PARTS = TOUCH ? 150 : 240, HARD_PARTS = TOUCH ? 260 : 420; // TOP: how high the blade reaches
   const CUT = { minPiece: 2.5e-4, minHalf: 2e-5, tol: 0.012 };
   const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false, arsenal: false, flash: 0, demoQ: null, dummyAt: 0, kick: 0, shx: 1, shz: 0, ult: 0, zoom: 1, sheet: 'title', playT: 0, heat: 0 };
-  const P = { x: 0, z: 0, yaw: 0, hp: 100, maxHp: 100, focus: 1, speed: 0, phase: 0, dash: 0, dashCd: 0, dx: 0, dz: 1, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, nextSlash: 0, queue: null, flip: 0, dead: false, rig: null, vx: 0, vz: 0, y: 0, over: 0, ultId: 'over', up: {}, cd: {}, slots: [], act: null, stance: 0, front: 1, combo: 0, comboAt: 0, reach: 2.9, lungeMax: 3.8, drain: 0.24, run: 6.3, dashGap: 0.6, leech: 0, slowKill: 0.3 };
+  const P = { x: 0, z: 0, yaw: 0, hp: 100, maxHp: 100, focus: 1, speed: 0, phase: 0, dash: 0, dashCd: 0, dx: 0, dz: 1, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, nextSlash: 0, queue: null, flip: 0, dead: false, rig: null, vx: 0, vz: 0, y: 0, heat: 1, cool: 0, heatAt: 0, fireK: 0, auraAt: 0, over: 0, ultId: 'over', up: {}, cd: {}, slots: [], act: null, stance: 0, front: 1, combo: 0, comboAt: 0, reach: 2.9, lungeMax: 3.8, drain: 0.24, run: 6.3, dashGap: 0.6, leech: 0, slowKill: 0.3 };
   const bodies = [], enemies = [], solids = [];
   const keys = {};
   let vw = 1, vh = 1, seed = 20261119, pr = PR;
@@ -154,15 +154,16 @@
   function burnBlade(dt) {
     P.fireK = Math.max(0, (P.fireK || 0) - dt * 3.2);
     const on = katana.visible, k = P.fireK + (P.over ? 0.6 : 0), len = katana.scale.y;
-    bladeFire.u.uTime.value = S.real; bladeFire.u.uGain.value = 1.15 + 1.3 * k;
+    const lit = P.cool > 0 ? 0.06 : 0.45 + 0.55 * P.heat; // how much fire is left on it
+    bladeFire.u.uTime.value = S.real; bladeFire.u.uGain.value = (1.15 + 1.3 * k) * lit;
     bladeAxis.set(0, 1, 0).applyQuaternion(katana.quaternion);
     bladeLight.visible = on;
     bladeLight.position.copy(katana.position).addScaledVector(bladeAxis, 0.65 * len); bladeLight.position.y = Math.max(0.35, bladeLight.position.y);
-    bladeLight.intensity = (1.7 + 0.5 * Math.sin(S.real * 23) + 0.35 * Math.sin(S.real * 57)) * (1 + 1.5 * k);
+    bladeLight.intensity = (1.7 + 0.5 * Math.sin(S.real * 23) + 0.35 * Math.sin(S.real * 57)) * (1 + 1.5 * k) * lit;
     if (!on) { SFX.blade(0); return; }
     SFX.blade(S.paused || S.mode === 'dead' ? 0.03 : 0.08 + 0.24 * Math.min(1, k) + 0.03 * Math.min(1, P.speed / 6));
     const c = style.trailB, hot = style.trailA;
-    const rate = dt * (46 + 190 * k);
+    const rate = dt * (46 + 190 * k) * lit;
     for (let n = Math.floor(rate) + (rnd() < rate % 1 ? 1 : 0); n > 0; n--) { // tongues that leave the blade and climb
       const at = (0.15 + rnd() * 1.05) * len, w = rnd() < 0.3 ? hot : c, j = 0.7 + rnd() * 0.6;
       SPARKS.add(katana.position.x + bladeAxis.x * at + (rnd() - 0.5) * 0.08, katana.position.y + bladeAxis.y * at, katana.position.z + bladeAxis.z * at + (rnd() - 0.5) * 0.08, (rnd() - 0.5) * 0.7, 0.9 + rnd() * 1.5, (rnd() - 0.5) * 0.7, w[0] * j, w[1] * j, w[2] * j, 1, 0.09 + rnd() * 0.11, 0.2 + rnd() * 0.3, 2, -4.5);
@@ -172,7 +173,7 @@
     if (P.rig) { scene.remove(P.rig.root); MODELS.dispose(P.rig); }
     P.rig = MODELS.makeRig(MODELS.hero());
     scene.add(P.rig.root);
-    Object.assign(P, { x: 0, z: 0, yaw: Math.PI, hp: P.maxHp, focus: 1, speed: 0, dash: 0, dashCd: 0, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, queue: null, dead: false, act: null, stance: 0, vx: 0, vz: 0, y: 0 });
+    Object.assign(P, { x: 0, z: 0, yaw: Math.PI, hp: P.maxHp, focus: 1, speed: 0, dash: 0, dashCd: 0, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, queue: null, dead: false, act: null, stance: 0, vx: 0, vz: 0, y: 0, heat: 1, cool: 0 });
     katana.visible = true;
   }
   // ---- what the blade learns: each level offers three of these
@@ -336,6 +337,7 @@
       b.scarf.rotation.x = Math.max(b.scarf.rotation.x, 0.9 * st);
     }
     if (act && poseAct(b, act)) return;
+    if (LIVE.on && !sw && !act) { poseLive(b, dt); return; }
     if (sw) {
       sw.t += dt;
       // the blade runs a little past the end of the cut and settles back
@@ -343,7 +345,8 @@
       const a = lerp(sw.a0, sw.a1, e) + over * (sw.a1 > sw.a0 ? 1 : -1);
       bladeDir.copy(sw.f).multiplyScalar(Math.cos(a)).addScaledVector(sw.s, Math.sin(a));
       b.chest.rotation.y = lerp(-0.85, 0.85, e) * sw.turn; b.chest.rotation.x = 0.22;
-      if (sw.heavy) P.rig.root.rotation.y = P.yaw + sw.turn * e * Math.PI * 2; // the third blow of a combo turns the whole body round
+      if (sw.turns) { P.rig.root.rotation.y = P.yaw + sw.turn * e * Math.PI * 2 * sw.turns; if (sw.t < sw.T && rnd() < dt * 34) GHOSTS.add(bake(P.rig), style.ghost, 0.18); } // a blow on the turn takes the whole body round, once or twice
+      if (sw.hop) P.rig.root.position.y = P.y + Math.sin(Math.PI * k) * sw.hop; // and off the ground
       P.rig.root.updateMatrixWorld(true);
       // the grip follows the swing but never leaves the reach of the arms; the crescent shows the true plane of the cut
       v2.setFromMatrixPosition(b.chest.matrixWorld); v2.y += 0.3;
@@ -708,22 +711,27 @@
   const d0 = new T.Vector3(), d1 = new T.Vector3(), dm = new T.Vector3(), pj = new T.Vector3();
   function dirAt(px, py, out) { out.set(px / vw * 2 - 1, -(py / vh * 2 - 1), 0.5).unproject(camera).sub(camera.position).normalize(); }
   // A swipe on the screen becomes a plane through the eye, so the cut lands exactly on the line that was drawn.
-  function slash(ax, ay, bx, by, heavy) {
-    if ((S.mode !== 'play' && !S.arsenal) || P.dead || S.paused || P.act) return false;
-    if (S.real < P.nextSlash || P.lunge) { P.queue = [ax, ay, bx, by, S.real, heavy]; return false; }
-    P.queue = null;
-    P.nextSlash = S.real + (P.over ? 0.05 : S.focusOn ? 0.06 : 0.12);
+  // the plane of a cut from a line on the screen; kind: 0 a plain cut, 1 a cut on the turn, 2 two turns in the air, 3 a blow straight down
+  function jobFor(ax, ay, bx, by, kind) {
     camera.updateMatrixWorld();
     dirAt(ax, ay, d0); dirAt(bx, by, d1);
     const n = new T.Vector3().crossVectors(d0, d1);
-    if (n.lengthSq() < 1e-9) return false;
+    if (n.lengthSq() < 1e-9) return null;
     n.normalize();
     const C = camera.position;
     dm.copy(d0).add(d1).normalize();
     const tm = clamp(dm.y < -0.02 ? (1.05 - C.y) / dm.y : 16, 2, 45), M = C.clone().addScaledVector(dm, tm);
     const u = d1.clone().sub(d0); u.addScaledVector(n, -u.dot(n)).normalize();
-    const job = { heavy: !!heavy, n, d: n.dot(C), u, M, ax, ay, bx, by, len: Math.hypot(bx - ax, by - ay), vp: new T.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse), focal: vh / (2 * Math.tan(camera.fov * Math.PI / 360)) };
-    const dx = M.x - P.x, dz = M.z - P.z, dist = Math.hypot(dx, dz);
+    return { kind: kind === true ? 1 : kind | 0, n, d: n.dot(C), u, M, ax, ay, bx, by, len: Math.hypot(bx - ax, by - ay), vp: new T.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse), focal: vh / (2 * Math.tan(camera.fov * Math.PI / 360)) };
+  }
+  function slash(ax, ay, bx, by, kind) {
+    if ((S.mode !== 'play' && !S.arsenal) || P.dead || S.paused || P.act) return false;
+    if (S.real < P.nextSlash || P.lunge) { P.queue = [ax, ay, bx, by, S.real, kind]; return false; }
+    const job = jobFor(ax, ay, bx, by, kind);
+    if (!job) return false;
+    P.queue = null;
+    P.nextSlash = S.real + (P.over ? 0.05 : S.focusOn ? 0.06 : 0.12) + (job.kind === 2 ? 0.2 : 0);
+    const M = job.M, dx = M.x - P.x, dz = M.z - P.z, dist = Math.hypot(dx, dz);
     if (dist > 0.05) P.yaw = Math.atan2(dx, dz);
     const go = Math.min(P.lungeMax, dist - STANDOFF);
     if (go > 0.3) { P.lunge = { x0: P.x, z0: P.z, x1: P.x + dx / dist * go, z1: P.z + dz / dist * go, t: 0, T: 0.045 + go * 0.012, job }; SFX.dash(); }
@@ -743,17 +751,35 @@
     // which way the body turns with the swing: +1 when the blade goes to the wanderer's left
     const turn = (s.x * Math.cos(P.yaw) - s.z * Math.sin(P.yaw)) >= 0 ? 1 : -1;
     // the third blow of a quick combo is a full turn with a wider, longer cut
-    const heavy = job.heavy, A = heavy ? 2.5 : 1.5, T0 = heavy ? 0.17 : 0.11, R = P.reach * (heavy ? 1.18 : 1);
-    P.sw = { t: 0, T: T0, pv, f, s, a0: -A, a1: A, turn, heavy };
+    // overloaded, every blow is at least a turn and he leaves the ground for it
+    const kind = job.kind, heavy = kind > 0, over = !!P.over, turns = kind === 2 ? 2 : kind === 1 ? 1 : over ? 1 : 0;
+    const A = turns ? Math.PI : kind === 3 ? 1.9 : 1.5, T0 = kind === 2 ? 0.3 : heavy ? 0.18 : 0.11, R = P.reach * (heavy ? 1.2 : 1);
+    P.sw = { t: 0, T: T0, pv, f, s, a0: -A, a1: A, turn, heavy, turns, hop: kind === 2 ? 1.25 : over && turns ? 0.45 : 0 };
     P.stance = 1; P.front = turn; P.fireK = heavy ? 1.6 : 1;
-    crescent(pv, f, s, -A, A, 0.45, R * 1.06, T0, heavy ? { gain: 1.5, fade: 0.36 } : { gain: 1.15, fade: 0.28 });
+    crescent(pv, f, s, -A * turn, A * turn, 0.45, R * 1.06, T0, heavy ? { gain: 1.5, fade: 0.36 } : { gain: 1.15, fade: 0.28 });
     for (let i = 0; i < (heavy ? 26 : 14); i++) { // fire torn off the blade all along the arc
       const g = lerp(-A, A, rnd()), c = Math.cos(g), sn = Math.sin(g), r = 0.9 + rnd() * (R - 0.9), w = rnd() < 0.35 ? style.trailA : style.trailB, j = 0.7 + rnd() * 0.6;
       SPARKS.add(pv.x + (f.x * c + s.x * sn) * r, Math.max(0.1, pv.y + (f.y * c + s.y * sn) * r), pv.z + (f.z * c + s.z * sn) * r, (-f.x * sn + s.x * c) * (2 + rnd() * 4), 0.6 + rnd() * 1.6 + (-f.y * sn + s.y * c) * 2, (-f.z * sn + s.z * c) * (2 + rnd() * 4), w[0] * j, w[1] * j, w[2] * j, 1, 0.1 + rnd() * 0.13, 0.25 + rnd() * 0.35, 2.2, -3.5);
     }
     if (heavy) { ghostAt(P.x, P.z, P.yaw + 2.1, 0.22); ghostAt(P.x, P.z, P.yaw + 4.2, 0.3); }
     SFX.swing(heavy);
-    const e = job.vp.elements, lx = job.bx - job.ax, ly = job.by - job.ay, len2 = lx * lx + ly * ly;
+    if (P.cool > 0) SFX.thud(3); // a blade with no fire on it only knocks
+    for (let k = 1; k <= Math.max(P.up.twin, P.over ? 2 : 0); k++) { const side = k === 1 ? 0.26 : -0.26; crescent({ x: pv.x + n.x * side, y: pv.y + n.y * side, z: pv.z + n.z * side }, f, s, -A, A, 0.45, R * 1.06, T0 + 0.02 + k * 0.03, { gain: 0.8 }); }
+    if (kind === 2) crescent({ x: pv.x, y: pv.y + 0.55, z: pv.z }, f, s, A, -A, 0.5, R * 1.0, T0, { gain: 1.2, fade: 0.36 }); // the second turn, higher and the other way round
+    if (kind === 3) { // straight down: the ground takes it too
+      const gx = P.x + Math.sin(P.yaw) * 1.4, gz = P.z + Math.cos(P.yaw) * 1.4;
+      TRAILS.add({ p: [gx, 0.08, gz], f: [1, 0, 0], s: [0, 0, 1], a0: -Math.PI, a1: Math.PI, r0: 0.3, r1: 1.1, T: 0.02, hold: 0, fade: 0.4, colA: style.trailA, colB: style.trailB, flame: style.flame, gain: 1.2, grow: 7 });
+      for (let i = 0; i < 12; i++) { const g = rnd() * 6.28; DUST.add(gx, 0.12, gz, Math.cos(g) * 6, 0.4 + rnd(), Math.sin(g) * 6, 0.3, 0.34, 0.52, 0.24, 0.5, 0.7, 2.6, -0.2); }
+      S.shake = Math.max(S.shake, 0.55); S.kick = Math.max(S.kick, 0.7);
+    }
+    cutWith(job, R, heavy ? 0.09 : 0.06);
+    if (kind === 2) cutWith(Object.assign({}, job, { d: job.d + (n.y >= 0 ? 0.5 : -0.5) }), R, 0);
+  }
+  // The cut itself: whatever the blade reaches along the line that was drawn, with the second and third edge if he has them.
+  // It costs the blade some of its flame, and a blade that has gone out cuts nothing.
+  function cutWith(job, R, cost) {
+    if (P.cool > 0) return 0;
+    const px = P.x, pz = P.z, e = job.vp.elements, lx = job.bx - job.ax, ly = job.by - job.ay, len2 = lx * lx + ly * ly;
     const want = (x, y, z, r) => {
       if (y - r * 0.3 > (P.over ? 4.8 : TOP)) return false;
       const ex = x - px, ey = y - 1.1, ez = z - pz, lim = R + r * 0.6;
@@ -766,13 +792,93 @@
     };
     const killed = S.kills;
     let made = cutAll(job, want, px, pz, R);
-    for (let k = 1; k <= Math.max(P.up.twin, P.over ? 2 : 0); k++) { // the second and third edge: the same cut a hand's width to either side
-      const side = k === 1 ? 0.26 : -0.26;
-      made += cutAll(Object.assign({}, job, { d: job.d + side }), want, px, pz, R);
-      crescent({ x: pv.x + n.x * side, y: pv.y + n.y * side, z: pv.z + n.z * side }, f, s, -A, A, 0.45, R * 1.06, T0 + 0.02 + k * 0.03, { gain: 0.8 });
-    }
+    for (let k = 1; k <= Math.max(P.up.twin, P.over ? 2 : 0); k++) made += cutAll(Object.assign({}, job, { d: job.d + (k === 1 ? 0.26 : -0.26) }), want, px, pz, R);
     if (made) { scored(made, killed); S.shx = job.u.x; S.shz = job.u.z; }
     for (let i = bolts.length - 1; i >= 0; i--) { const b = bolts[i]; if (!b.back && Math.hypot(b.x - px, b.z - pz) < R * 0.9) { dropBolt(i, true); P.focus = Math.min(1, P.focus + 0.05); } } // a swing takes bolts out of the air
+    spend(cost);
+    return made;
+  }
+  // every cut takes some of the flame off the blade; with none left it goes out for a moment
+  function spend(cost) {
+    P.heatAt = S.real;
+    if (P.over || !cost) return;
+    P.heat -= cost;
+    if (P.heat <= 0) { P.heat = 0; P.cool = 1.1; SFX.hiss(); }
+  }
+
+  // ---- the led blade: while the button is down the tip of the blade is where the cursor is, the wanderer flies after it, and the cuts follow the stroke
+  const LIVE = { on: false, cx: 0, cz: 0, fly: 0, tip: new T.Vector3(), has: false, speed: 0, spin: 0, spinDir: 1, dx: 0, dy: 0, lx: 0, ly: 0 };
+  function liveBlade(dt) {
+    const sw = swipe;
+    if (!sw || P.dead || P.act || S.paused || P.lunge || (S.mode !== 'play' && !S.arsenal)) { if (LIVE.on) { LIVE.on = false; RIBBON.gap(); } LIVE.fly = 0; LIVE.speed = 0; return; }
+    camera.updateMatrixWorld(); dirAt(sw.x, sw.y, d0);
+    const t = d0.y < -0.02 ? (1.0 - camera.position.y) / d0.y : 20, cx = camera.position.x + d0.x * t, cz = camera.position.z + d0.z * t;
+    if (!LIVE.on) { LIVE.on = true; LIVE.has = false; LIVE.lx = sw.x; LIVE.ly = sw.y; LIVE.dx = LIVE.dy = 0; }
+    LIVE.cx = cx; LIVE.cz = cz; LIVE.fly = 0;
+    const R = 0.45 + 1.1 * katana.scale.y, dx = cx - P.x, dz = cz - P.z, d = Math.hypot(dx, dz) || 1e-3;
+    if (!P.sw && sw.far > 14) { // he goes after his blade: never farther from it than his arm and the blade together
+      if (d > R * 0.9) { const v = Math.min(P.over ? 26 : 17, (d - R * 0.75) * 13), mv = Math.min(d - R * 0.75, v * dt); P.x += dx / d * mv; P.z += dz / d * mv; P.dx = dx / d; P.dz = dz / d; LIVE.fly = v; P.speed = v; keepIn(); }
+      let da = Math.atan2(dx, dz) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 26));
+    }
+    // which way the stroke runs; when it doubles back he goes round in a spin that cuts all about him
+    const mx = sw.x - LIVE.lx, my = sw.y - LIVE.ly, ml = Math.hypot(mx, my);
+    if (ml > 26) {
+      const nx = mx / ml, ny = my / ml;
+      if (LIVE.dx * nx + LIVE.dy * ny < -0.35 && LIVE.spin <= 0 && !P.sw) spinCut(LIVE.dx * ny - LIVE.dy * nx > 0 ? -1 : 1);
+      LIVE.dx = nx; LIVE.dy = ny; LIVE.lx = sw.x; LIVE.ly = sw.y;
+    }
+    const len = Math.hypot(sw.x - sw.ax, sw.y - sw.ay);
+    if (len > 44) { // the cuts follow the stroke a hand's width at a time, wherever he has got to
+      const job = jobFor(sw.ax, sw.ay, sw.x, sw.y, 0);
+      if (job && cutWith(job, P.reach * 0.92, 0.02)) P.fireK = Math.max(P.fireK, 0.8);
+      INK.push({ ax: sw.ax, ay: sw.ay, bx: sw.x, by: sw.y, t: 0 });
+      sw.ax = sw.x; sw.ay = sw.y; sw.n++;
+      if (!S.cutOnce && sw.n > 3) { S.cutOnce = true; $('hint').classList.add('gone'); }
+    } else if (S.real - sw.at > 0.3 && sw.far <= 14 && S.real >= sw.nextTap) { tapSlash(sw.x, sw.y); sw.n++; sw.nextTap = S.real + 0.3; } // held still on one spot: blow after blow
+  }
+  function spinCut(dir) {
+    LIVE.spin = 0.34; LIVE.spinDir = dir; P.fireK = 1.5;
+    const px = P.x, pz = P.z, R = P.reach * 0.85, n = new T.Vector3((rnd() - 0.5) * 0.2, 1, (rnd() - 0.5) * 0.2).normalize(), f = new T.Vector3(1, 0, 0);
+    f.addScaledVector(n, -f.dot(n)).normalize();
+    const s = new T.Vector3().crossVectors(n, f);
+    if (P.cool <= 0) {
+      const killed = S.kills, made = cutAll({ n, d: n.x * px + n.y * 1.05 + n.z * pz, u: f, uAt: (x, z) => { const ex = x - px, ez = z - pz, l = Math.hypot(ex, ez) || 1; return [(ex * 0.6 - ez * dir) / l, 0, (ez * 0.6 + ex * dir) / l]; } },
+        (x, y, z, r) => { if (y - r * 0.3 > TOP) return false; const ex = x - px, ez = z - pz, lim = R + r * 0.5; return ex * ex + ez * ez < lim * lim; }, px, pz, R);
+      if (made) scored(made, killed);
+      spend(0.07);
+    }
+    crescent({ x: px, y: 1.05, z: pz }, f, s, -Math.PI * dir, Math.PI * dir, 0.5, R * 1.12, 0.24, { gain: 1.35, fade: 0.32 });
+    ghostAt(P.x, P.z, P.yaw + 2.1, 0.24); ghostAt(P.x, P.z, P.yaw + 4.2, 0.32);
+    SFX.swing(true);
+  }
+  // the pose of a man led by his own blade: leaning after it, and in flight stretched out behind it
+  function poseLive(b, dt) {
+    const fly = clamp(LIVE.fly / 15, 0, 1), len = 1.166 * katana.scale.y, R = 0.45 + len;
+    let yaw = P.yaw, turn = 0;
+    if (LIVE.spin > 0) { LIVE.spin -= dt; turn = (1 - Math.max(0, LIVE.spin) / 0.34) * Math.PI * 2 * LIVE.spinDir; yaw += turn; if (rnd() < dt * 26) GHOSTS.add(bake(P.rig), style.ghost, 0.2); }
+    P.rig.root.rotation.y = yaw; P.rig.root.position.y = P.y + 0.22 * fly;
+    b.hips.position.y = b.hips.rest[1] - 0.14; b.hips.rotation.x = 0.25 + 0.8 * fly;
+    b.thighL.rotation.x = lerp(-0.9, 0.55, fly); b.shinL.rotation.x = lerp(1.0, 0.5, fly); b.thighR.rotation.x = lerp(0.6, 0.8, fly); b.shinR.rotation.x = lerp(0.3, 0.95, fly);
+    b.chest.rotation.set(0.15 - 0.4 * fly, 0, 0); b.head.rotation.x = -0.2 - 0.5 * fly;
+    b.scarf.rotation.x = 0.7 + 0.6 * fly + Math.sin(S.real * 14) * 0.1;
+    P.rig.root.updateMatrixWorld(true);
+    v2.setFromMatrixPosition(b.chest.matrixWorld); v2.y += 0.3; // the shoulders
+    // where the tip is wanted: on the cursor, or in a spin on a circle round him; never beyond his reach
+    if (turn) v3.set(P.x + Math.sin(yaw) * R, 1.05, P.z + Math.cos(yaw) * R); else v3.set(LIVE.cx, 1.0, LIVE.cz);
+    v3.sub(v2); const dl = v3.length() || 1; if (dl > R) v3.multiplyScalar(R / dl); v3.add(v2);
+    if (!LIVE.has) { LIVE.tip.copy(v3); LIVE.has = true; LIVE.speed = 0; }
+    else { const ox = LIVE.tip.x, oy = LIVE.tip.y, oz = LIVE.tip.z; LIVE.tip.lerp(v3, 1 - Math.exp(-dt * (turn ? 60 : 38))); LIVE.speed = lerp(LIVE.speed, Math.hypot(LIVE.tip.x - ox, LIVE.tip.y - oy, LIVE.tip.z - oz) / Math.max(dt, 1e-3), 0.4); }
+    bladeDir.copy(LIVE.tip).sub(v2); const bl = bladeDir.length() || 1; bladeDir.multiplyScalar(1 / bl);
+    hilt.copy(LIVE.tip).addScaledVector(bladeDir, -len).sub(v2);
+    if (hilt.length() > 0.5) hilt.setLength(0.5);
+    hilt.add(v2);
+    aim(b.armR, hilt); b.foreR.rotation.set(0, 0, 0); aim(b.armL, hilt); b.foreL.rotation.set(0, 0, 0);
+    katana.position.copy(hilt); katana.quaternion.setFromUnitVectors(UP, bladeDir);
+    // fire where the blade is: a ribbon through the places of its tip, and tongues coming off it
+    const tx = hilt.x + bladeDir.x * len, ty = hilt.y + bladeDir.y * len, tz = hilt.z + bladeDir.z * len;
+    RIBBON.add(tx, ty, tz, S.real);
+    if (P.cool <= 0) for (let i = Math.min(4, Math.floor(LIVE.speed * dt * 3) + 1); i > 0; i--) flame(tx + (rnd() - 0.5) * 0.3, ty + (rnd() - 0.5) * 0.3, tz + (rnd() - 0.5) * 0.3);
+    P.fireK = Math.max(P.fireK, Math.min(1, LIVE.speed / 22));
   }
   function cutAll(job, want, cx, cz, R) {
     let made = 0;
@@ -818,10 +924,11 @@
       const sx = (pj.x * 0.5 + 0.5) * vw, sy = (0.5 - pj.y * 0.5) * vh, d = (sx - x) * (sx - x) + (sy - y) * (sy - y);
       if (d < best) { best = d; cx = sx; cy = sy; }
     }
-    // quick taps make a combo of three: down to the right, down to the left, then a wide flat cut on the turn
     if (S.real - P.comboAt > 1.1) P.combo = 0;
-    const i = P.combo % 3, ang = [-0.5, Math.PI + 0.5, 0.06][i], L = clamp(vh * 0.17, 70, 180) * (i === 2 ? 1.3 : 1);
-    if (slash(cx - Math.cos(ang) * L, cy + Math.sin(ang) * L, cx + Math.cos(ang) * L, cy - Math.sin(ang) * L, i === 2)) { P.combo++; P.comboAt = S.real; }
+    // down to the right, down to the left, a flat cut on the turn, two turns in the air, and a blow straight down; overloaded, only the last three
+    const seq = P.over ? [[0.06, 1], [Math.PI - 0.06, 2], [Math.PI / 2, 3]] : [[-0.5, 0], [Math.PI + 0.5, 0], [0.06, 1], [Math.PI - 0.06, 2], [Math.PI / 2, 3]];
+    const pick = seq[P.combo % seq.length], ang = pick[0], L = clamp(vh * 0.17, 70, 180) * (pick[1] ? 1.3 : 1);
+    if (slash(cx - Math.cos(ang) * L, cy + Math.sin(ang) * L, cx + Math.cos(ang) * L, cy - Math.sin(ang) * L, pick[1])) { P.combo++; P.comboAt = S.real; }
   }
 
   // ---- techniques: two are worn at a time, chosen in the arsenal
@@ -1012,6 +1119,11 @@
         if (made) scored(made, a.kills);
       }
       if (a.t >= 0.8) endAct();
+    } else if (a.id === 'rise') { // the overload takes hold: up off the ground for a moment with the blade over his head, light breaking out of him
+      const k = Math.min(1, a.t / 0.45);
+      P.y = Math.sin(Math.PI * k) * 0.95;
+      while (a.step < 3 && a.t >= a.step * 0.13) { a.step++; STREAKS.add(P.x, 0.1, P.z, P.x, 6.5, P.z, 0.2 + a.step * 0.12, 0.5, 0.08, style.trailA); for (let i = 0; i < 10; i++) flame(P.x + (rnd() - 0.5) * 1.2, 0.3 + rnd() * 2, P.z + (rnd() - 0.5) * 1.2); }
+      if (k >= 1) endAct();
     } else if (a.id === 'guard') {
       const d = aimDir();
       P.yaw = Math.atan2(d[0], d[1]);
@@ -1091,7 +1203,8 @@
     S.ult = 0; S.flash = 1; S.kick = 1; S.shake = Math.max(S.shake, 0.7);
     SFX.gong(); SFX.sheath();
     if (P.ultId === 'over') {
-      P.over = S.real + 8; applyUps();
+      P.over = S.real + 8.45; applyUps();
+      P.act = { id: 'rise', t: 0, pose: 'leap', slow: 0.2, hidden: false, step: 0 }; P.invul = Math.max(P.invul, 0.8);
       for (let i = 0; i < 3; i++) TRAILS.add({ p: [P.x, 0.1 + i * 0.7, P.z], f: [1, 0, 0], s: [0, 0, 1], a0: -Math.PI, a1: Math.PI, r0: 0.3, r1: 1.2, T: 0.02, hold: 0, fade: 0.5, colA: style.trailA, colB: style.trailB, flame: 1, gain: 1.3, grow: 7 });
       banner('Перегрузка');
     } else {
@@ -1185,21 +1298,14 @@
   const local = (ev) => { const r = canvas.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
   stage.addEventListener('contextmenu', (ev) => ev.preventDefault());
   // one stroke: press, move, lift. A sharp turn inside a long stroke ends one cut and starts the next, so scribbling chops.
-  function press(id, x, y) { if (!swipe) swipe = { id, ax: x, ay: y, x, y, px: x, py: y, at: S.real, n: 0, nextTap: 0 }; }
-  function cutStroke() { if (slash(swipe.ax, swipe.ay, swipe.x, swipe.y)) swipe.n++; swipe.ax = swipe.px = swipe.x; swipe.ay = swipe.py = swipe.y; }
+  function press(id, x, y) { if (!swipe) swipe = { id, ax: x, ay: y, x, y, x0: x, y0: y, far: 0, at: S.real, n: 0, nextTap: 0 }; }
   function move(id, x, y) {
     if (!swipe || swipe.id !== id) return;
-    swipe.x = x; swipe.y = y; swipe.at = S.real;
-    if (Math.hypot(x - swipe.ax, y - swipe.ay) > clamp(vh * 0.3, 150, 300)) { cutStroke(); return; } // long enough: do not wait for the button to come up
-    const sx = x - swipe.px, sy = y - swipe.py, step = Math.hypot(sx, sy);
-    if (step > 12) {
-      const lx = swipe.px - swipe.ax, ly = swipe.py - swipe.ay, len = Math.hypot(lx, ly);
-      if (len > 56 && (sx * lx + sy * ly) / (step * len) < 0.15) { if (slash(swipe.ax, swipe.ay, swipe.px, swipe.py)) swipe.n++; swipe.ax = swipe.px; swipe.ay = swipe.py; }
-      swipe.px = x; swipe.py = y;
-    }
+    swipe.x = x; swipe.y = y; swipe.at = S.real; swipe.far = Math.max(swipe.far, Math.hypot(x - swipe.x0, y - swipe.y0));
   }
   function lift(id, x, y, commit) {
     if (!swipe || swipe.id !== id) return;
+    // a click is a blow of the combo; the end of a stroke the frame has not caught up with is one last cut
     if (commit) { if (Math.hypot(x - swipe.ax, y - swipe.ay) < 16) { if (!swipe.n) tapSlash(x, y); } else slash(swipe.ax, swipe.ay, x, y); }
     swipe = null;
   }
@@ -1258,7 +1364,7 @@
       return;
     }
     keys[ev.code] = true;
-    const num = Math.max(['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7'].indexOf(ev.code), ['Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7'].indexOf(ev.code));
+    const num = Math.max(KEYS.indexOf(ev.code), ['', '', '', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4'].indexOf(ev.code));
     if (num >= 0) useAbility(num);
     if (ev.code === 'KeyR') useUlt();
     if (ev.code === 'Space') { ev.preventDefault(); dash(); }
@@ -1370,8 +1476,10 @@
   }
 
   // ---- the arsenal: the style of the blade and the two techniques worn, kept between visits
-  // The seven techniques sit on the number keys in this order: the quick ones under the first fingers, the long ones further along.
+  // The seven techniques, in the order of their keys: the quick ones under the first fingers, the long ones further along.
   const ORDER = ['wave', 'fan', 'spin', 'iai', 'leap', 'guard', 'storm'];
+  // their keys: around the left hand and the numbers above it; R, in the middle of them, is the ultimate
+  const KEYS = ['KeyQ', 'KeyE', 'KeyT', 'Digit1', 'Digit2', 'Digit3', 'Digit4'], KEY_NAMES = ['Q', 'E', 'T', '1', '2', '3', '4'];
   const LOAD = { style: 'ember', ult: 'over' };
   try {
     const j = JSON.parse(localStorage.getItem('blade-clay-loadout') || 'null');
@@ -1405,7 +1513,7 @@
     fill($('optStyle'), STYLES, LOAD.style, (id) => { LOAD.style = id; applyLoad(true); demo('style'); }, 'aboutStyle', '');
     fill($('optUlt'), Object.keys(ULTS).map((id) => Object.assign({ id }, ULTS[id])), LOAD.ult, (id) => { LOAD.ult = id; applyLoad(true); demo('ult'); }, 'aboutUlt', '');
     // the techniques are not chosen, they are all there: this shelf is for reading about them and trying them
-    fill($('optTech'), ORDER.map((id, i) => Object.assign({ id, key: String(i + 1) }, ABIL[id])), null, (id) => demo(ORDER.indexOf(id)), 'aboutTech', 'Все семь всегда с тобой. Наведи, чтобы прочитать; нажми, чтобы увидеть на синтете.');
+    fill($('optTech'), ORDER.map((id, i) => Object.assign({ id, key: KEY_NAMES[i] }, ABIL[id])), null, (id) => demo(ORDER.indexOf(id)), 'aboutTech', 'Все семь всегда с тобой. Наведи, чтобы прочитать; нажми, чтобы увидеть на синтете.');
   }
   // the bar at the bottom: a chip for each technique with its key, and one for the ultimate
   function buildBar() {
@@ -1418,7 +1526,7 @@
       b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (ult) useUlt(); else useAbility(i); });
       box.append(b);
     };
-    ORDER.forEach((id, i) => chip(i, String(i + 1), false));
+    ORDER.forEach((id, i) => chip(i, KEY_NAMES[i], false));
     chip('U', 'R', true);
   }
   // On the title screen the arsenal comes with a practice idol, and every choice is shown on it at once.
@@ -1489,7 +1597,8 @@
       vx = P.vx; vz = P.vz;
       P.speed = Math.hypot(vx, vz);
       if (ml <= 0.15 && !P.sw && !P.act && S.mode === 'play') { const at = mouseGround(); if (at && Math.hypot(at[0] - P.x, at[1] - P.z) > 0.8) { let da = Math.atan2(at[0] - P.x, at[1] - P.z) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 9)); } }
-      if (ml > 0.15) { P.dx = mx / ml; P.dz = mz / ml; if (!P.sw) { let da = Math.atan2(mx, mz) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 16)); } }
+      // he turns the way he runs, except while the blade is led: then he looks along the blade
+      if (ml > 0.15) { P.dx = mx / ml; P.dz = mz / ml; if (!P.sw && !LIVE.on) { let da = Math.atan2(mx, mz) - P.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); P.yaw += da * (1 - Math.exp(-dt * 16)); } }
     }
     P.kx *= Math.exp(-dt * 7); P.kz *= Math.exp(-dt * 7);
     P.x += (vx + P.kx) * dt; P.z += (vz + P.kz) * dt;
@@ -1545,11 +1654,12 @@
   const hud = { hp: $('hp'), focus: $('focus'), xp: $('xp'), level: $('level'), wave: $('wave'), kills: $('kills'), parts: $('parts') };
   let hudKey = '';
   function updateHud() {
-    const key = [P.ultId, Math.round(S.ult * 50), !!P.over, ORDER.map((id) => Math.ceil(P.cd[id] * 10)).join('.'), Math.round(P.hp), P.maxHp, Math.round(P.focus * 50), S.xp, S.level, S.wave, S.kills, S.parts, S.focusOn, focusBtn].join();
+    const key = [P.ultId, Math.round(S.ult * 50), !!P.over, Math.round(P.heat * 40), P.cool > 0, ORDER.map((id) => Math.ceil(P.cd[id] * 10)).join('.'), Math.round(P.hp), P.maxHp, Math.round(P.focus * 50), S.xp, S.level, S.wave, S.kills, S.parts, S.focusOn, focusBtn].join();
     if (key === hudKey) return;
     hudKey = key;
     hud.hp.style.transform = 'scaleX(' + clamp(P.hp / P.maxHp, 0, 1) + ')';
     hud.focus.style.transform = 'scaleX(' + clamp(P.focus, 0, 1) + ')';
+    $('heat').style.transform = 'scaleX(' + clamp(P.heat, 0, 1) + ')'; $('heat').classList.toggle('out', P.cool > 0);
     hud.xp.style.transform = 'scaleX(' + clamp(S.xp / S.need, 0, 1) + ')';
     hud.level.textContent = S.level; hud.wave.textContent = S.wave; hud.kills.textContent = S.kills; hud.parts.textContent = S.parts;
     for (let k = 0; k < ORDER.length; k++) { const id = ORDER[k], cd = P.cd[id]; $('abilName' + k).textContent = ABIL[id].short; $('abilCd' + k).style.transform = 'scaleY(' + clamp(cd / ABIL[id].cd, 0, 1) + ')'; $('abil' + k).classList.toggle('wait', cd > 0); }
@@ -1620,18 +1730,12 @@
     S.time += dt;
     SHARED.uTime.value = S.time;
     if (S.mode !== 'title' || S.arsenal) {
-      if (swipe) {
-        const len = Math.hypot(swipe.x - swipe.ax, swipe.y - swipe.ay), still = S.real - swipe.at;
-        if (still > 0.1 && len > 36) cutStroke(); // a stroke that has stopped is a cut already
-        else if (still > 0.07 && len <= 36 && S.real >= swipe.nextTap && !P.lunge && !P.act) { // held in one place: blow after blow at whatever is under the cursor
-          swipe.ax = swipe.px = swipe.x; swipe.ay = swipe.py = swipe.y;
-          tapSlash(swipe.x, swipe.y); swipe.n++; swipe.nextTap = S.real + 0.27;
-        }
-      }
+      liveBlade(dtR);
       updateDemo();
       if (P.over) { // overloaded: light pours off him, and it ends on the clock
         if (S.real >= P.over || P.dead) { P.over = 0; applyUps(); }
-        else { if (P.speed > 2 && rnd() < dtR * 9) GHOSTS.add(bake(P.rig), style.ghost, 0.22); if (rnd() < dtR * 40) flame(katana.position.x + (rnd() - 0.5) * 0.4, katana.position.y + rnd() * 1.2, katana.position.z + (rnd() - 0.5) * 0.4); }
+        else { if (S.real >= P.auraAt) { P.auraAt = S.real + 0.5; TRAILS.add({ p: [P.x, 0.08, P.z], f: [1, 0, 0], s: [0, 0, 1], a0: -Math.PI, a1: Math.PI, r0: 0.3, r1: 0.9, T: 0.02, hold: 0, fade: 0.5, colA: style.trailA, colB: style.trailB, flame: 1, gain: 0.9, grow: 5 }); }
+          if (P.speed > 2 && rnd() < dtR * 16) GHOSTS.add(bake(P.rig), style.ghost, 0.22); if (rnd() < dtR * 40) flame(katana.position.x + (rnd() - 0.5) * 0.4, katana.position.y + rnd() * 1.2, katana.position.z + (rnd() - 0.5) * 0.4); }
       }
       updateAct(dtR);
       updateFlying(dtR * Math.max(S.scale, 0.35));
@@ -1642,7 +1746,12 @@
       updateWaves(dt);
     } else poseHero(dtR);
     updateBodies(dt);
+    P.cool = Math.max(0, P.cool - dtR);
+    if (P.cool <= 0 && S.real - P.heatAt > 0.4) P.heat = Math.min(1, P.heat + dtR * 0.7); // the flame comes back when the blade rests
     burnBlade(dtR);
+    SFX.live(LIVE.on && P.cool <= 0 ? LIVE.speed : 0);
+    RIBBON.step(S.real, camera, 0.34, P.over ? 0.34 : 0.2);
+    RIBBON.u.uColA.value.fromArray(style.trailA); RIBBON.u.uColB.value.fromArray(style.trailB);
     SPARKS.step(dt + dtR * 0.02); DUST.step(dt); TRAILS.step(dtR, S.real); STREAKS.step(dtR, camera); GHOSTS.step(dtR);
     updateCamera(dtR);
     S.hurtK = Math.max(0, S.hurtK - dtR * 1.8);
@@ -1668,6 +1777,6 @@
   buildProps(); resetUps(); newHero(); applyLoad(false); applyOpt(false); bestLine(); show('title');
   P.rig.root.visible = true;
   resize();
-  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, show, pause, toTitle, OPT, applyOpt, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
+  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, LIVE, RIBBON, show, pause, toTitle, OPT, applyOpt, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();

@@ -149,3 +149,49 @@ function makeBladeFire() {
   mesh.frustumCulled = false; mesh.renderOrder = 7;
   return { mesh, u: mat.uniforms };
 }
+
+// The fire the blade leaves where it has just been: a ribbon through the last places of its tip, always turned to the eye, burning out behind.
+function makeRibbon(scene, n) {
+  const pts = [], pos = new Float32Array(n * 6), uv = new Float32Array(n * 4), idx = [];
+  for (let i = 0; i + 1 < n; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  const g = new T.BufferGeometry();
+  g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('uv', new T.BufferAttribute(uv, 2)); g.setIndex(idx);
+  const mat = new T.ShaderMaterial({
+    transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, fog: false,
+    uniforms: { uTime: { value: 0 }, uColA: { value: new T.Vector3(1, 0.5, 0.1) }, uColB: { value: new T.Vector3(1, 0.1, 0) } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 uColA, uColB; uniform float uTime; varying vec2 vUv; ${NOISE_GLSL}
+      void main(){
+        float age = vUv.x, across = 1.0 - abs(vUv.y - 0.5) * 2.0;
+        float nz = noise(vec2(vUv.y * 5.0 + uTime * 2.0, age * 9.0 - uTime * 7.0));
+        float fl = smoothstep(0.2 + age * 0.55, 0.95, across + (nz - 0.5) * (0.5 + age));
+        vec3 col = mix(uColB, uColA, smoothstep(0.3, 0.9, across) * (1.0 - age)) * fl + vec3(1.0, 0.95, 0.85) * smoothstep(0.75, 1.0, across) * fl * (1.0 - age) * (1.0 - age);
+        gl_FragColor = vec4(col * (1.0 - age) * 1.6, 1.0);
+      }`,
+  });
+  const mesh = new T.Mesh(g, mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 7;
+  scene.add(mesh);
+  const a = new T.Vector3(), b = new T.Vector3(), side = new T.Vector3(), eye = new T.Vector3();
+  return {
+    u: mat.uniforms,
+    add(x, y, z, t) { const l = pts[pts.length - 1]; if (l && !l.gap && Math.hypot(x - l.x, y - l.y, z - l.z) < 0.04) return; pts.push({ x, y, z, t, gap: false }); if (pts.length > n) pts.shift(); },
+    gap() { if (pts.length) pts[pts.length - 1].gap = true; }, // the blade was lifted: the next stretch does not join this one
+    step(time, camera, life, width) {
+      while (pts.length && time - pts[0].t > life) pts.shift();
+      const m = pts.length;
+      for (let i = 0; i < n; i++) {
+        const o = i * 6, p = pts[Math.min(i, m - 1)];
+        if (!p || i >= m) { for (let k = 0; k < 6; k++) pos[o + k] = m ? pos[(m - 1) * 6 + (k % 3)] : 0; uv[i * 4] = uv[i * 4 + 2] = 1; continue; }
+        const q = pts[Math.min(i + 1, m - 1)], r = pts[Math.max(i - 1, 0)], age = Math.min(1, (time - p.t) / life), cutHere = p.gap || (i > 0 && r.gap);
+        a.set(p.x, p.y, p.z); b.set(q.x - r.x, q.y - r.y, q.z - r.z); eye.copy(camera.position).sub(a);
+        side.crossVectors(b, eye); const l = side.length();
+        side.multiplyScalar(l > 1e-6 ? width * (cutHere ? 0 : 1 - age * 0.6) / l : 0);
+        pos[o] = a.x - side.x; pos[o + 1] = a.y - side.y; pos[o + 2] = a.z - side.z; pos[o + 3] = a.x + side.x; pos[o + 4] = a.y + side.y; pos[o + 5] = a.z + side.z;
+        uv[i * 4] = age; uv[i * 4 + 1] = 0; uv[i * 4 + 2] = age; uv[i * 4 + 3] = 1;
+      }
+      g.attributes.position.needsUpdate = true; g.attributes.uv.needsUpdate = true;
+      mat.uniforms.uTime.value = time;
+    },
+  };
+}

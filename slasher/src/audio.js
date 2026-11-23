@@ -1,6 +1,6 @@
 // Every sound is made on the spot from noise and sine waves; there are no recordings.
 const SFX = (function () {
-  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0, bed = null;
+  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0, bed = null, liveF = null, liveG = null;
   function start() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -28,6 +28,11 @@ const SFX = (function () {
       const s = ac.createBufferSource(), f = ac.createBiquadFilter(), tr = ac.createGain(), m = ac.createBufferSource(), md = ac.createGain();
       s.buffer = noise; s.loop = true; s.playbackRate.value = 0.5; f.type = 'lowpass'; f.frequency.value = 620; f.Q.value = 0.8;
       m.buffer = noise; m.loop = true; m.playbackRate.value = 0.003; md.gain.value = 0.6; tr.gain.value = 1; m.connect(md); md.connect(tr.gain);
+      // and the blade led by the hand: one voice that is silent while it is still and climbs in loudness and pitch with its speed
+      const ls = ac.createBufferSource(); ls.buffer = noise; ls.loop = true;
+      liveF = ac.createBiquadFilter(); liveF.type = 'bandpass'; liveF.Q.value = 1.5; liveF.frequency.value = 600;
+      liveG = ac.createGain(); liveG.gain.value = 0;
+      ls.connect(liveF); liveF.connect(liveG); liveG.connect(fx); ls.start();
       bed = ac.createGain(); bed.gain.value = 0;
       s.connect(f); f.connect(tr); tr.connect(bed); bed.connect(fx); s.start(); m.start();
     }
@@ -64,6 +69,15 @@ const SFX = (function () {
     }
   }
   const now = () => ac.currentTime;
+  // A blade through the air: a narrow band of noise whose pitch climbs and falls with the speed of the swing.
+  function whoosh(dur, vol, f0, f1, delay) {
+    const t = now() + (delay || 0), s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise; s.loop = true;
+    f.type = 'bandpass'; f.Q.value = 1.9;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.4); f.frequency.exponentialRampToValueAtTime(f0 * 1.15, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(fx); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+  }
   // Fire. Dark noise through a filter that opens and closes, with slow noise riding on its level: that unevenness is what makes it a roar and not
   // a hiss. It swells fast, holds for nearly half its length, and only then dies away, so it is heard as a body of sound and not as a pop.
   function roar(dur, vol, lo, hi, delay) {
@@ -100,25 +114,28 @@ const SFX = (function () {
     volume(v) { fxVol = v; if (fx) fx.gain.value = v; },
     musicVolume(v) { musVol = v; if (mus) mus.gain.value = v; },
     music(h) { heat = h; },
+    live(v) { if (liveG) { liveG.gain.setTargetAtTime(Math.min(0.42, v * 0.02), ac.currentTime, 0.04); liveF.frequency.setTargetAtTime(480 + Math.min(v, 42) * 80, ac.currentTime, 0.05); } }, // v: how fast the tip of the blade moves, metres a second
     blade(k) { if (bed) bed.gain.setTargetAtTime(k, ac.currentTime, 0.06); }, // how loud the fire on the blade is just now // 0: quiet, between fights; 1: a fight is on
     slow(k) { if (ac) lp.frequency.setTargetAtTime(k < 0.5 ? 1100 : 18000, now(), 0.08); },
-    // a swing of the burning blade: the roar of the fire dragged through the air, with a hiss on top and weight underneath
+    // a swing: the blade through the air, its edge, the steel singing a little, and under that the fire it carries
     swing(big) {
       if (!ok()) return;
-      const k = big ? 1.5 : 1;
-      roar(0.62 * k, 1.0 * k, 220, 1500, 0); roar(0.42 * k, 0.45, 700, 3200, 0.02);
-      burst(5200, 0.7, 'highpass', 0.24 * k, 0.07, 0, 0.02);
-      tone(84, 0.42 * k, 0.3, 'sine', 42);
+      const k = big ? 1.35 : 1, p = 0.94 + Math.random() * 0.12;
+      whoosh(0.2 * k, 0.6 * k, 520, 3000, 0); whoosh(0.13 * k, 0.24, 2400, 7200, 0.012);
+      tone(2300 * p, 0.24 * k, 0.035, 'sine', 0, 0.02); tone(3650 * p, 0.17 * k, 0.02, 'sine', 0, 0.02);
+      roar(0.32 * k, 0.34 * k, 260, 1300, 0.015);
     },
-    // the blade going through: a thump of fire let loose, a sizzle as it sears, and only a trace of steel; n is how many pieces it opened
+    // the blade going through: the bite, the ring of the steel, a little weight, and the fire let out; n is how many pieces it opened
     cut(n) {
       if (!ok()) return;
-      const v = Math.min(1, 0.55 + n * 0.05);
-      roar(0.8, 1.15 * v, 170, 1000, 0); roar(0.5, 0.55 * v, 900, 4000, 0.01);
-      tone(62, 0.6, 0.55 * v, 'sine', 30); tone(118, 0.22, 0.25 * v, 'triangle', 50);
-      burst(6400, 0.7, 'highpass', 0.34, 0.12 * v, 0, 0.03);
-      tone(1900 * (0.94 + Math.random() * 0.12), 0.2, 0.035, 'sine');
+      const v = Math.min(1, 0.6 + n * 0.05), p = 0.94 + Math.random() * 0.12;
+      burst(4200, 0.9, 'highpass', 0.06, 0.34 * v);
+      tone(2140 * p, 0.34, 0.08 * v, 'sine'); tone(3390 * p, 0.25, 0.05 * v, 'sine'); tone(5230 * p, 0.15, 0.028 * v, 'sine');
+      tone(96, 0.2, 0.3 * v, 'sine', 48);
+      roar(0.42, 0.52 * v, 300, 1500, 0.02);
     },
+    // the flame on the blade goes out
+    hiss() { if (ok()) { burst(3200, 0.8, 'highpass', 0.55, 0.22, 700); tone(300, 0.4, 0.12, 'sine', 80); } },
     // a part hitting the ground: a clink of armour with a little weight, not a pop
     thud(speed) {
       if (!ok() || now() - lastThud < 0.075) return;

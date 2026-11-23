@@ -62,7 +62,7 @@ const out = (n) => path.join(__dirname, '../out', n);
   assert(st.kept === st.load && !st.act && st.mode === 'title' && st.pressed === 2 && st.kills >= 1, 'kept, shown and tried: ' + JSON.stringify(st));
   await p.click('#arsenalDone');
   assert(await p.evaluate(() => !document.getElementById('title').hidden && document.getElementById('arsenal').hidden && !__game.enemies.length), 'back to the title, practice idol gone');
-  await p.evaluate(() => { __game.begin(4242); __game.S.autoPick = true; window.clearIdols = () => { const g = __game; for (const e of g.enemies) if (!e.dead) { e.dead = true; if (e.rig.root.parent) e.rig.root.parent.remove(e.rig.root); } g.S.queue.length = 0; g.S.next = 1e9; }; window.risen = () => { const g = __game; for (let k = 0; k < 600; k++) { const e = g.enemies.find((x) => !x.dead && x.state !== 'rise'); if (e) return e; g.P.invul = 1; g.step(1 / 60); } throw new Error('no idol to cut'); }; });
+  await p.evaluate(() => { __game.begin(4242); __game.S.autoPick = true; window.clearIdols = () => { const g = __game; for (const e of g.enemies) if (!e.dead) { e.dead = true; if (e.rig.root.parent) e.rig.root.parent.remove(e.rig.root); } g.S.queue.length = 0; g.S.next = 1e9; }; window.risen = () => { const g = __game; g.P.heat = 1; g.P.cool = 0; for (let k = 0; k < 600; k++) { const e = g.enemies.find((x) => !x.dead && x.state !== 'rise'); if (e) return e; g.P.invul = 1; g.step(1 / 60); } throw new Error('no idol to cut'); }; });
   await run(2.6);
   st = await p.evaluate(() => ({ mode: __game.S.mode, idols: __game.enemies.length, bodies: __game.bodies.length }));
   assert.strictEqual(st.mode, 'play'); assert(st.idols >= 2, 'idols have risen: ' + st.idols);
@@ -231,6 +231,7 @@ const out = (n) => path.join(__dirname, '../out', n);
       window.slots = slots; // which techniques this scene is for
       g.P.x = 0; g.P.z = 0; g.P.yaw = 0; g.P.speed = 0; g.P.act = null; g.P.invul = 99; g.P.hp = g.P.maxHp; g.S.slowT = 0; g.S.stop = 0;
       for (const id in g.P.cd) g.P.cd[id] = 0;
+      g.P.heat = 1; g.P.cool = 0; g.P.over = 0; g.applyUps();
       const out = spots.map(([x, z]) => { const e = g.spawnIdol('grunt'); e.x = x; e.z = z; e.speed = 0; e.dummy = true; e.range = -1; e.rig.root.position.set(x, -2 * e.scale, z); return e; });
       for (let i = 0; i < 90; i++) { g.P.x = 0; g.P.z = 0; g.step(1 / 60); }
       return out;
@@ -312,13 +313,49 @@ const out = (n) => path.join(__dirname, '../out', n);
   r = await p.evaluate(() => { const g = __game; setOut(['spin', 'iai'], [[0, 3]]); const a = g.cast(slots[0]); go(0.7); const b = g.cast(slots[0]); return { a, b, cd: g.P.cd.spin }; });
   assert(r.a && !r.b && r.cd > 5, 'cooldown: ' + JSON.stringify(r));
   await p.evaluate(() => { __game.P.cd.iai = 0; });
-  await p.keyboard.press('Digit4');
-  assert(await p.evaluate(() => __game.P.act && __game.P.act.id === 'iai'), 'the 4 key calls the fourth technique');
+  await p.keyboard.press('Digit1');
+  assert(await p.evaluate(() => __game.P.act && __game.P.act.id === 'iai'), 'the 1 key calls the fourth technique');
   await run(1.2);
+  await p.evaluate(() => { __game.S.ult = 1; });
+  await p.keyboard.press('KeyR');
+  assert(await p.evaluate(() => __game.S.ult === 0), 'and R spends the ultimate');
+  await run(1.2);
+  // the led blade: the button is down and the mouse is drawn slowly through three synths; he flies after his blade and the stroke cuts as it goes
+  r = await p.evaluate(() => { const g = __game; setOut([], [[3.2, 0], [6.4, 0], [9.6, 0]]); return { kills: g.S.kills, x: g.P.x }; });
+  const onScreen = (x, z) => p.evaluate(([x, z]) => { const g = __game; g.camera.updateMatrixWorld(); const v = new THREE.Vector3(x, 1.0, z).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; }, [x, z]);
+  let pt = await onScreen(1.0, -0.5);
+  await p.mouse.move(pt[0], pt[1]); await p.mouse.down();
+  let flew = 0, spun = false;
+  for (let k = 1; k <= 26; k++) {
+    pt = await onScreen(1.0 + k * 0.4, k % 2 ? 0.55 : -0.55);
+    await p.mouse.move(pt[0], pt[1]); await run(0.05);
+    const now = await p.evaluate(() => ({ fly: __game.LIVE.fly, spin: __game.LIVE.spin > 0 }));
+    flew = Math.max(flew, now.fly); spun = spun || now.spin;
+    if (k === 12) await shot('9l-led-blade');
+  }
+  st = await p.evaluate(() => ({ kills: __game.S.kills, x: __game.P.x, live: __game.LIVE.on, heat: __game.P.heat, tip: __game.LIVE.tip.x }));
+  await p.mouse.up();
+  assert(st.live && st.kills >= r.kills + 3 && st.x > r.x + 6 && flew > 5, 'led by the blade he flew through all three: ' + JSON.stringify(st) + ' flew ' + flew);
+  assert(spun && st.heat < 1, 'a stroke that doubles back spins him, and cutting spends the flame: ' + JSON.stringify(st));
+  // the flame: a blade with none left goes out and cuts nothing until it comes back
+  r = await p.evaluate(() => {
+    const g = __game, es = setOut([], [[1.7, 0.3], [-1.7, 0.3]]);
+    const cut = (e) => { g.camera.updateMatrixWorld(); const v = new THREE.Vector3(e.x, 1.1 * e.scale, e.z).project(g.camera), x = (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y = (0.5 - v.y * 0.5) * g.canvas.clientHeight; g.slash(x - 110, y - 30, x + 110, y + 40); go(0.3); };
+    g.P.heat = 0.03;
+    cut(es[0]); const out = g.P.cool > 0, first = es[0].dead;
+    cut(es[1]); const second = es[1].dead;
+    go(2.2); const back = g.P.heat;
+    cut(es[1]);
+    return { first, out, second, back, later: es[1].dead };
+  });
+  assert(r.first && r.out && !r.second && r.back > 0.4 && r.later, 'the flame runs out, the blade is dead for a moment, then it burns again: ' + JSON.stringify(r));
+  // the combo: five blows, and the third, fourth and fifth are a turn, two turns in the air, and a blow down
+  r = await p.evaluate(() => { const g = __game; setOut([], []); const seen = []; for (let i = 0; i < 5; i++) { g.P.heat = 1; g.tapSlash(g.canvas.clientWidth * 0.55, g.canvas.clientHeight * 0.4); for (let k = 0; k < 20 && !g.P.sw; k++) g.step(1 / 60); /* he may have to leap to the spot first */ seen.push(g.P.sw ? [g.P.sw.turns, g.P.sw.hop > 0] : null); go(0.65); /* long enough for the blow to be over before the next */ } return seen; });
+  assert.deepStrictEqual(r, [[0, false], [0, false], [1, false], [2, true], [0, false]], 'the five blows of the combo: ' + JSON.stringify(r));
   // mouse and keyboard: holding the button on a synth keeps cutting it, the wheel moves the camera, Tab opens the arsenal over a pause
   r = await p.evaluate(() => { const g = __game; setOut([], [[1.6, -0.3]]); const e = g.enemies[0]; for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(e.x, 1.1 * e.scale, e.z).project(g.camera); return { x: (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y: (0.5 - v.y * 0.5) * g.canvas.clientHeight, kills: g.S.kills }; });
   await p.mouse.move(r.x, r.y); await p.mouse.down();
-  await run(0.5);
+  await run(0.8);
   st = await p.evaluate(() => ({ kills: __game.S.kills, parts: __game.S.parts, ring: __game.reticle.visible }));
   await p.mouse.up();
   // the ring under the cursor is for a mouse; with fingers there is no cursor to mark
