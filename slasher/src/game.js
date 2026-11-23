@@ -996,7 +996,7 @@
   function aimDir() {
     if (mouse.seen && !TOUCH && !S.arsenal) {
       camera.updateMatrixWorld(); dirAt(mouse.x, mouse.y, d0);
-      if (d0.y < -0.02) { const t = (1.0 - camera.position.y) / d0.y, x = camera.position.x + d0.x * t - P.x, z = camera.position.z + d0.z * t - P.z, l = Math.hypot(x, z); if (l > 0.3) return [x / l, z / l]; }
+      if (d0.y < -0.02) { const t = -camera.position.y / d0.y, x = camera.position.x + d0.x * t - P.x, z = camera.position.z + d0.z * t - P.z, l = Math.hypot(x, z); if (l > 0.3) return [x / l, z / l]; }
     }
     let best = null, bd = 16;
     for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - P.x, e.z - P.z); if (d < bd) { bd = d; best = e; } }
@@ -1034,8 +1034,9 @@
     P.cd[id] = COOL ? ABIL[id].cd : 0; P.invul = Math.max(P.invul, 1.5); P.stance = 1; P.front = 1;
     if (id === 'storm') {
       // the middle of it: the nearest idol in front, or a spot a few steps ahead
-      const cx = P.x + ax * 2.6, cz = P.z + az * 2.6;
-      let bd = 4.4;
+      const mg = mouseGround(), md = mg ? Math.hypot(mg[0] - P.x, mg[1] - P.z) : 0, far = Math.min(md, 14); // at the cursor, if there is one
+      const cx = mg && md > 0.3 ? P.x + (mg[0] - P.x) / md * far : P.x + ax * 2.6, cz = mg && md > 0.3 ? P.z + (mg[1] - P.z) / md * far : P.z + az * 2.6;
+      let bd = mg ? 2.2 : 4.4;
       for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - cx, e.z - cz); if (d < bd) { bd = d; a.c = [e.x, Math.min(1.7, 1.05 * e.scale), e.z]; } }
       if (!a.c) a.c = [cx, 1.1, cz];
       a.slow = 0.04; a.cuts = 12; a.next = 0.13;
@@ -1051,7 +1052,8 @@
       FLARES.add(P.x, 1.3, P.z, style.trailA, 8, 1.1, 15, P);
       SFX.vortex();
     } else if (id === 'iai') {
-      let L = 9.5;
+      const mg = mouseGround();
+      let L = mg ? clamp(Math.hypot(mg[0] - P.x, mg[1] - P.z), 2.5, 14) : 9.5; // he comes out exactly where the cursor was
       const er = Math.hypot(P.x + ax * L, P.z + az * L);
       if (er > ARENA) L = Math.max(2, L - (er - ARENA));
       a.x1 = P.x + ax * L; a.z1 = P.z + az * L; a.L = L;
@@ -1398,11 +1400,8 @@
   const local = (ev) => { const r = canvas.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
   stage.addEventListener('contextmenu', (ev) => ev.preventDefault());
   // one stroke: press, move, lift. A sharp turn inside a long stroke ends one cut and starts the next, so scribbling chops.
-  function groundAt(px, py) { camera.updateMatrixWorld(); dirAt(px, py, d0); if (d0.y > -0.02) return null; const t = -camera.position.y / d0.y; return [camera.position.x + d0.x * t, camera.position.z + d0.z * t]; }
-  function press(id, x, y) { if (!swipe) swipe = { id, ax: x, ay: y, x, y, px: x, py: y, at: S.real, n: 0, nextTap: 0, to: groundAt(x, y) }; }
-  // the first cut of a stroke takes him to where the button went down; the rest of the stroke is cut from there
-  function goTo() { const to = swipe.to; swipe.to = null; return to; }
-  function cutStroke() { if (slash(swipe.ax, swipe.ay, swipe.x, swipe.y, 0, goTo())) swipe.n++; swipe.ax = swipe.px = swipe.x; swipe.ay = swipe.py = swipe.y; }
+  function press(id, x, y) { if (!swipe) swipe = { id, ax: x, ay: y, x, y, px: x, py: y, at: S.real, n: 0, nextTap: 0 }; }
+  function cutStroke() { if (slash(swipe.ax, swipe.ay, swipe.x, swipe.y)) swipe.n++; swipe.ax = swipe.px = swipe.x; swipe.ay = swipe.py = swipe.y; }
   function move(id, x, y) {
     if (!swipe || swipe.id !== id) return;
     swipe.x = x; swipe.y = y; swipe.at = S.real;
@@ -1410,14 +1409,14 @@
     const sx = x - swipe.px, sy = y - swipe.py, step = Math.hypot(sx, sy);
     if (step > 12) { // a sharp turn in the stroke ends one cut and begins the next
       const lx = swipe.px - swipe.ax, ly = swipe.py - swipe.ay, len = Math.hypot(lx, ly);
-      if (len > 56 && (sx * lx + sy * ly) / (step * len) < 0.15) { if (slash(swipe.ax, swipe.ay, swipe.px, swipe.py, 0, goTo())) swipe.n++; swipe.ax = swipe.px; swipe.ay = swipe.py; }
+      if (len > 56 && (sx * lx + sy * ly) / (step * len) < 0.15) { if (slash(swipe.ax, swipe.ay, swipe.px, swipe.py)) swipe.n++; swipe.ax = swipe.px; swipe.ay = swipe.py; }
       swipe.px = x; swipe.py = y;
     }
   }
   function lift(id, x, y, commit) {
     if (!swipe || swipe.id !== id) return;
     // a click is a blow of the combo; the end of a stroke the frame has not caught up with is one last cut
-    if (commit) { if (Math.hypot(x - swipe.ax, y - swipe.ay) < 16) { if (!swipe.n) tapSlash(x, y); } else slash(swipe.ax, swipe.ay, x, y, 0, goTo()); }
+    if (commit) { if (Math.hypot(x - swipe.ax, y - swipe.ay) < 16) { if (!swipe.n) tapSlash(x, y); } else slash(swipe.ax, swipe.ay, x, y); }
     swipe = null;
   }
   // fingers and pens come as pointers

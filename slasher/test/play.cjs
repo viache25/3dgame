@@ -344,12 +344,17 @@ const out = (n) => path.join(__dirname, '../out', n);
   await run(1.2);
   // the mouse draws a cut; it does not carry the wanderer about. A stroke across a synth beside him cuts it and he stays where he stood
   r = await p.evaluate(() => { const g = __game, es = setOut([], [[1.7, 0.3]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(es[0].x, 1.1 * es[0].scale, es[0].z).project(g.camera); return { x: (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y: (0.5 - v.y * 0.5) * g.canvas.clientHeight, kills: g.S.kills }; });
-  // a stroke drawn across a synth that stands well off: he goes to where the button went down, and cuts from there
-  r = await p.evaluate(() => { const g = __game, es = setOut([], [[5.5, 0.3]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const at = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; }; return { a: at(4.3, 0, 0.9), m: at(5.5, 1.1, 0.3), kills: g.S.kills }; });
-  await p.mouse.move(r.a[0], r.a[1]); await p.mouse.down(); await p.mouse.move(r.m[0], r.m[1], { steps: 3 }); await p.mouse.move(2 * r.m[0] - r.a[0], 2 * r.m[1] - r.a[1], { steps: 3 }); await p.mouse.up(); await run(0.3);
+  // the mouse draws a cut; it does not carry the wanderer anywhere
+  r = await p.evaluate(() => { const g = __game, es = setOut([], [[1.7, 0.3]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(es[0].x, 1.1 * es[0].scale, es[0].z).project(g.camera); return { x: (v.x * 0.5 + 0.5) * g.canvas.clientWidth, y: (0.5 - v.y * 0.5) * g.canvas.clientHeight, kills: g.S.kills }; });
+  await p.mouse.move(r.x - 110, r.y - 30); await p.mouse.down(); await p.mouse.move(r.x, r.y, { steps: 3 }); await p.mouse.move(r.x + 110, r.y + 35, { steps: 3 }); await p.mouse.up(); await run(0.3);
   await shot('9l-stroke');
-  st = await p.evaluate(() => ({ kills: __game.S.kills, off: Math.hypot(__game.P.x - 4.3, __game.P.z - 0.9), fires: __game.FIRES.count() }));
-  assert(process.env.PHONE || (st.kills === r.kills + 1 && st.off < 0.5 && st.fires > 3), 'a stroke takes him to where it began and cuts along its line: ' + JSON.stringify(st));
+  st = await p.evaluate(() => ({ kills: __game.S.kills, moved: Math.hypot(__game.P.x, __game.P.z), fires: __game.FIRES.count() }));
+  assert(st.kills === r.kills + 1 && st.moved < 0.05 && st.fires > 3, 'a stroke cuts along its line and he does not move: ' + JSON.stringify(st));
+  // a technique goes to where the cursor is when its key goes down: the strike through comes out on that very spot
+  r = await p.evaluate(() => { const g = __game; setOut([], [[3, 0.2]]); for (let i = 0; i < 60; i++) g.step(1 / 60); g.camera.updateMatrixWorld(); const v = new THREE.Vector3(6, 0, 0.5).project(g.camera); return [(v.x * 0.5 + 0.5) * g.canvas.clientWidth, (0.5 - v.y * 0.5) * g.canvas.clientHeight]; });
+  await p.mouse.move(r[0], r[1]); await p.keyboard.press('Digit1'); await run(1);
+  st = await p.evaluate(() => ({ off: Math.hypot(__game.P.x - 6, __game.P.z - 0.5), alive: __game.enemies.filter((e) => !e.dead).length }));
+  assert(process.env.PHONE || (st.off < 0.4 && st.alive === 0), 'strike through ends where the cursor was: ' + JSON.stringify(st));
   // a click is a blow from where he stands: he goes nowhere, however far the cursor is
   r = await p.evaluate(() => { const g = __game; setOut([], []); for (let i = 0; i < 30; i++) g.step(1 / 60); g.tapSlash(g.canvas.clientWidth * 0.8, g.canvas.clientHeight * 0.3); go(0.4); return { moved: Math.hypot(g.P.x, g.P.z), swung: g.S.real - g.P.nextSlash < 1 }; });
   assert(r.moved < 0.05 && r.swung, 'a click strikes in place: ' + JSON.stringify(r));
