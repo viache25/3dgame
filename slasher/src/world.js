@@ -151,8 +151,9 @@ function buildWorld(scene, opt) {
       }
       rg.attributes.position.needsUpdate = true;
     },
-    plain() { // a device that cannot keep up loses the mirror: the street turns dry
-      if (mirror) { scene.remove(mirror); mirror = null; groundMat.alphaMap = null; groundMat.transparent = false; groundMat.needsUpdate = true; }
+    setMirror(on) { // without the mirror the street is simply dry asphalt: far cheaper to draw
+      if (!mirror) return;
+      mirror.visible = on; groundMat.alphaMap = on ? puddles : null; groundMat.transparent = on; groundMat.needsUpdate = true;
     },
   };
 }

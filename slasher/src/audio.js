@@ -1,6 +1,6 @@
 // Every sound is made on the spot from noise and sine waves; there are no recordings.
 const SFX = (function () {
-  let ac = null, out = null, lp = null, noise = null, wind = null, lastThud = 0, muted = false;
+  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0;
   function start() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -10,6 +10,10 @@ const SFX = (function () {
     lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 18000; // closes down while time is slowed
     const comp = ac.createDynamicsCompressor();
     lp.connect(comp); comp.connect(out); out.connect(ac.destination);
+    fx = ac.createGain(); fx.gain.value = fxVol; fx.connect(lp);     // everything that happens
+    mus = ac.createGain(); mus.gain.value = musVol; mus.connect(lp); // the track under it
+    nextT = ac.currentTime + 0.15;
+    setInterval(track, 70);
     noise = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -19,7 +23,38 @@ const SFX = (function () {
     wind = ac.createGain(); wind.gain.value = 0.035;
     const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.13; lg.gain.value = 170;
     lfo.connect(lg); lg.connect(f.frequency); lfo.start();
-    src.connect(f); f.connect(wind); wind.connect(lp); src.start();
+    src.connect(f); f.connect(wind); wind.connect(fx); src.start();
+  }
+  // The track: four bars in D minor that play themselves. Out of a fight only the pad and a slow bass; in one, drums and a running line join in.
+  const S16 = 60 / 104 / 4, ROOTS = [38, 38, 34, 36], BASS = [0, null, 0, null, 0, null, 3, null, 0, null, 0, 10, null, 7, 10, null], RUN = [0, 3, 7, 10, 12, 10, 7, 3];
+  const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function voice(type, freq, t, dur, vol, cut) {
+    const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t); f.type = 'lowpass'; f.frequency.setValueAtTime(cut, t); f.Q.value = 3;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.2)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(f); f.connect(g); g.connect(mus); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function hit(freq, type, t, dur, vol) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise; s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = 0.9;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(mus); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+  }
+  function track() {
+    if (!ac || ac.state !== 'running') return;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05; // the tab was asleep: pick the beat up from now
+    while (nextT < ac.currentTime + 0.25) {
+      const s = beat % 16, root = ROOTS[Math.floor(beat / 16) % 4], t = nextT, hot = heat > 0.5, b = BASS[s];
+      if (b !== null && (hot || s % 8 === 0)) voice('sawtooth', hz(root + b), t, S16 * 1.8, hot ? 0.2 : 0.13, hot ? 950 : 380);
+      if (s === 0) for (const iv of [12, 19, 24, 27]) voice('triangle', hz(root + iv), t, S16 * 16.5, 0.04, 1500);
+      if (hot) {
+        if (s % 4 === 0) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(44, t + 0.12); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); o.connect(g); g.connect(mus); o.start(t); o.stop(t + 0.25); }
+        if (s % 4 === 2) hit(7500, 'highpass', t, 0.04, 0.06);
+        if (s === 4 || s === 12) hit(1900, 'bandpass', t, 0.12, 0.13);
+        if (s % 2 === 0) voice('square', hz(root + 24 + RUN[(s / 2) % 8]), t, S16 * 0.95, 0.026, 2400);
+      }
+      nextT += S16; beat++;
+    }
   }
   const now = () => ac.currentTime;
   function burst(freq, q, type, dur, vol, sweepTo, delay) {
@@ -28,19 +63,22 @@ const SFX = (function () {
     f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
     if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.3)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(lp); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+    s.connect(f); f.connect(g); g.connect(fx); s.start(t, Math.random()); s.stop(t + dur + 0.05);
   }
   function tone(freq, dur, vol, type, to, delay) {
     const t = now() + (delay || 0), o = ac.createOscillator(), g = ac.createGain();
     o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
     if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(lp); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(fx); o.start(t); o.stop(t + dur + 0.05);
   }
   const ok = () => ac && !muted && ac.state === 'running';
   return {
     start,
     mute(m) { muted = m; if (out) out.gain.value = m ? 0 : 0.9; },
+    volume(v) { fxVol = v; if (fx) fx.gain.value = v; },
+    musicVolume(v) { musVol = v; if (mus) mus.gain.value = v; },
+    music(h) { heat = h; }, // 0: quiet, between fights; 1: a fight is on
     slow(k) { if (ac) lp.frequency.setTargetAtTime(k < 0.5 ? 1100 : 18000, now(), 0.08); },
     swing() { if (ok()) burst(900, 1.2, 'bandpass', 0.16, 0.22, 3600); },
     // the blade going through: a ring of steel over a crack of clay; n is how many pieces it opened

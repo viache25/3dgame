@@ -39,8 +39,6 @@ body { background: var(--night); color: var(--ink); font-family: var(--ui); over
 .stat { display: grid; gap: 1px; }
 .stat b { font-family: var(--display); font-weight: 400; font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); text-shadow: 0 2px 6px var(--night); }
 .stat span { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); text-shadow: 0 1px 3px var(--night); }
-#sound { pointer-events: auto; font: 600 11px var(--ui); letter-spacing: 0.06em; color: var(--dim); background: var(--plate); border: 1px solid var(--line); padding: 7px 10px; cursor: pointer; }
-#sound:hover { color: var(--ink); }
 
 #banner { position: absolute; left: 0; right: 0; top: 21%; text-align: center; font-family: var(--display); font-size: clamp(26px, 6vw, 64px); line-height: 1.05; text-wrap: balance; color: var(--ink); text-shadow: 0 0 28px rgba(255, 138, 60, 0.75), 0 3px 0 var(--night); opacity: 0; transform: scale(1.12); transition: opacity 0.45s, transform 0.45s; pointer-events: none; }
 #banner.on { opacity: 1; transform: none; }
@@ -69,6 +67,33 @@ body.touch .pads { display: flex; }
 .go.quiet { color: var(--ink); background: var(--plate); box-shadow: inset 0 0 0 2px var(--style); }
 .go.quiet:hover { background: rgba(52, 33, 58, 0.95); }
 .row { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* menus: a column of big words; the one in focus steps forward and gets a dash in the colour of the blade */
+.menu { gap: 14px; }
+.menu h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(30px, 4.6vw, 54px); line-height: 1; color: var(--ink); text-shadow: 0 0 30px rgba(255, 138, 60, 0.35); }
+.list { display: grid; gap: 1px; justify-items: start; margin-top: 4px; }
+.item { position: relative; font-family: var(--display); font-size: clamp(19px, 2.3vw, 27px); line-height: 1.15; color: var(--dim); background: none; border: 0; padding: 7px 14px 7px 28px; text-align: left; cursor: pointer; transition: color 0.12s, transform 0.12s; }
+.item::before { content: ""; position: absolute; left: 0; top: 50%; width: 16px; height: 3px; margin-top: -1px; background: var(--style); transform: scaleX(0); transform-origin: 0 50%; transition: transform 0.12s; }
+.item:hover, .item:focus { color: var(--ink); transform: translateX(6px); outline: none; }
+.item:hover::before, .item:focus::before { transform: scaleX(1); }
+.foot { font-size: 12px; line-height: 1.45; letter-spacing: 0.04em; color: var(--dim); opacity: 0.85; }
+.rows { display: grid; gap: 11px; width: 100%; }
+.rowset { display: grid; grid-template-columns: 10.5em minmax(0, 1fr) 3.2em; align-items: center; gap: 12px; font-size: 14px; color: var(--ink); }
+.rowset input[type="range"] { width: 100%; accent-color: var(--style); }
+.rowset output { font-variant-numeric: tabular-nums; color: var(--dim); text-align: right; }
+.seg { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { font: 600 13px var(--ui); color: var(--dim); background: var(--plate); border: 1px solid var(--line); padding: 7px 12px; cursor: pointer; }
+.seg button:hover { color: var(--ink); border-color: var(--ink); }
+.seg button[aria-pressed="true"] { color: var(--night); background: var(--style); border-color: var(--style); }
+.keymap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; margin: 0; font-size: 14px; line-height: 1.35; }
+.keymap dt { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.keymap dd { margin: 0; color: var(--dim); }
+.keymap kbd { display: inline-block; font: 800 12px var(--ui); color: var(--night); background: var(--blade); padding: 2px 7px; margin-right: 3px; }
+.tally { display: grid; grid-template-columns: repeat(3, auto); gap: 14px 30px; justify-content: start; }
+.tally div { display: grid; gap: 3px; }
+.tally b { font-family: var(--display); font-weight: 400; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
+.tally span { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+body.menu-up #stage { cursor: default; }
 
 /* the two techniques: chips at the bottom with a key each, round pads under the thumb on a phone; a shade drains off as one comes ready */
 .abils { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 6px; padding-block: 0 12px; pointer-events: none; }
@@ -117,9 +142,9 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
   /* on a phone the arsenal takes the lower part of the screen and the practice idol stays in view above it */
   #arsenal { inset: 34% 0 0 0; padding-block: 14px; background: linear-gradient(180deg, rgba(23, 15, 32, 0.55), rgba(23, 15, 32, 0.96) 12%); }
   .opt span { display: none; } .opt { padding-block: 9px; } #arsenal > .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stats { gap: 12px; } .stat b { font-size: 18px; } #sound { display: none; }
+  .stats { gap: 12px; } .stat b { font-size: 18px; }
 }
-@media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint, .card, .opt { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #banner, .fill, .go, #hint, .card, .opt, .item, .item::before { transition: none; } }
 </style>
 </head>
 <body>
@@ -136,7 +161,6 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
       <div class="stat"><b id="wave">1</b><span>Волна</span></div>
       <div class="stat"><b id="kills">0</b><span>Сражено</span></div>
       <div class="stat"><b id="parts">0</b><span>Кусков</span></div>
-      <button id="sound" type="button" aria-pressed="false">Звук вкл</button>
     </div>
   </div>
   <div id="banner" class="gutter"></div>
@@ -147,30 +171,67 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <button class="pad" id="btnFocus" type="button" aria-pressed="false">Фокус</button>
     <button class="pad" id="btnDash" type="button">Рывок</button>
   </div>
-  <div id="title" class="sheet gutter">
+  <div id="title" class="sheet menu gutter">
     <h1>Клинок <em>и&nbsp;неон</em></h1>
-    <p>Ночной город, дождь. С крыш падают синтеты с клинками. Твой клинок режет ровно там, где ты провёл линию.</p>
-    <ul class="keys for-keys">
-      <li><b>Зажать левую кнопку</b> — рубить то, что под курсором</li>
-      <li><b>Провести с зажатой</b> — разрез ровно по этой линии</li>
-      <li><b>WASD</b> — бег, <b>пробел</b> — рывок</li>
-      <li><b>Shift</b> или правая кнопка — замедлить время</li>
-      <li><b>1–7</b> — приёмы, <b>R</b> — ульта; бьют туда, где курсор</li>
-      <li><b>Колесо</b> — ближе и дальше, <b>F</b> — весь экран, <b>Tab</b> — арсенал</li>
-    </ul>
-    <ul class="keys for-touch">
-      <li><b>Провести пальцем</b> — разрез по этой линии</li>
-      <li><b>Коснуться</b> — быстрый удар по ближнему</li>
-      <li><b>Левый палец</b> ведёт героя</li>
-      <li><b>Фокус</b> замедляет время, <b>Рывок</b> уводит из-под удара</li>
-      <li>Верхние кнопки — два приёма и ульта, бьют по ближнему</li>
-    </ul>
-    <div class="row"><button class="go" id="start" type="button">В бой</button><button class="go quiet" id="openArsenal" type="button">Арсенал</button></div>
+    <p class="tag">Ночной город, дождь. С крыш падают синтеты с клинками. Твой клинок режет ровно там, где ты провёл линию.</p>
+    <nav class="list" aria-label="Главное меню">
+      <button class="item" id="start" type="button">Играть</button>
+      <button class="item" id="openArsenal" type="button">Арсенал</button>
+      <button class="item" data-open="settings" type="button">Настройки</button>
+      <button class="item" data-open="controls" type="button">Управление</button>
+    </nav>
+    <p class="foot" id="bestLine"></p>
   </div>
-  <div id="dead" class="sheet gutter" hidden>
+  <div id="pause" class="sheet menu gutter" hidden>
+    <h2>Пауза</h2>
+    <nav class="list" aria-label="Пауза">
+      <button class="item" id="resume" type="button">Продолжить</button>
+      <button class="item" id="pauseArsenal" type="button">Арсенал</button>
+      <button class="item" data-open="settings" type="button">Настройки</button>
+      <button class="item" data-open="controls" type="button">Управление</button>
+      <button class="item" id="restart" type="button">Начать заново</button>
+      <button class="item" id="quit" type="button">В главное меню</button>
+    </nav>
+    <p class="foot" id="pauseLine"></p>
+  </div>
+  <div id="settings" class="sheet menu gutter" hidden>
+    <h2>Настройки</h2>
+    <div class="rows">
+      <label class="rowset"><span>Звуки</span><input type="range" id="optSfx" min="0" max="100" step="5"><output id="optSfxOut"></output></label>
+      <label class="rowset"><span>Музыка</span><input type="range" id="optMusic" min="0" max="100" step="5"><output id="optMusicOut"></output></label>
+      <label class="rowset"><span>Тряска камеры</span><input type="range" id="optShake" min="0" max="100" step="10"><output id="optShakeOut"></output></label>
+      <div class="rowset"><span>Графика</span><div class="seg" id="optGfx"><button type="button" data-v="low">Низкая</button><button type="button" data-v="mid">Средняя</button><button type="button" data-v="high">Высокая</button></div></div>
+      <div class="rowset"><span>Вспышки на ударах</span><div class="seg" id="optFlash"><button type="button" data-v="1">Вкл</button><button type="button" data-v="0">Выкл</button></div></div>
+      <div class="rowset"><span>Экран</span><div class="seg"><button type="button" id="fullBtn">На весь экран</button></div></div>
+    </div>
+    <p class="foot">Высокая графика включает зеркальный мокрый асфальт. Если игра идёт рывками, она сама опустится на ступень ниже.</p>
+    <nav class="list"><button class="item" data-back type="button">Назад</button></nav>
+  </div>
+  <div id="controls" class="sheet menu gutter" hidden>
+    <h2>Управление</h2>
+    <dl class="keymap">
+      <dt><kbd>ЛКМ</kbd> зажать</dt><dd>рубить то, что под курсором</dd>
+      <dt><kbd>ЛКМ</kbd> провести</dt><dd>разрез ровно по этой линии</dd>
+      <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>бег</dd>
+      <dt><kbd>Пробел</kbd></dt><dd>рывок; стоя на месте — к курсору</dd>
+      <dt><kbd>Shift</kbd> или <kbd>ПКМ</kbd></dt><dd>замедлить время, пока держишь</dd>
+      <dt><kbd>1</kbd>–<kbd>7</kbd></dt><dd>приёмы, бьют туда, где курсор</dd>
+      <dt><kbd>R</kbd></dt><dd>ульта, когда заряд полон</dd>
+      <dt><kbd>Колесо</kbd></dt><dd>камера ближе и дальше</dd>
+      <dt><kbd>Tab</kbd></dt><dd>арсенал</dd>
+      <dt><kbd>F</kbd></dt><dd>на весь экран</dd>
+      <dt><kbd>Esc</kbd></dt><dd>пауза и назад</dd>
+    </dl>
+    <nav class="list"><button class="item" data-back type="button">Назад</button></nav>
+  </div>
+  <div id="dead" class="sheet menu gutter" hidden>
     <h1>Клинок <em>остыл</em></h1>
-    <p id="deadStats"></p>
-    <button class="go" id="again" type="button">Ещё раз</button>
+    <div class="tally" id="deadStats"></div>
+    <nav class="list" aria-label="Конец забега">
+      <button class="item" id="again" type="button">Ещё раз</button>
+      <button class="item" id="deadArsenal" type="button">Арсенал</button>
+      <button class="item" id="deadQuit" type="button">В главное меню</button>
+    </nav>
   </div>
   <div id="levelup" class="sheet gutter" hidden>
     <h2>Уровень <span id="levelNum">2</span></h2>
@@ -189,19 +250,6 @@ button:focus-visible { outline: 2px solid var(--blade); outline-offset: 3px; }
     <div class="opts" id="optTech"></div>
     <p class="about" id="aboutTech"></p>
     <button class="go" id="arsenalDone" type="button">Готово</button>
-  </div>
-  <div id="pause" class="sheet gutter" hidden>
-    <h1>Пауза</h1>
-    <div class="row"><button class="go" id="resume" type="button">Дальше</button><button class="go quiet" id="pauseArsenal" type="button">Арсенал</button><button class="go quiet" id="fullBtn" type="button">Весь экран</button></div>
-    <ul class="keys">
-      <li><b>Зажать левую кнопку</b> — рубить то, что под курсором</li>
-      <li><b>Провести с зажатой</b> — разрез ровно по этой линии</li>
-      <li><b>WASD</b> — бег, <b>пробел</b> — рывок</li>
-      <li><b>Shift</b> или правая кнопка — замедлить время</li>
-      <li><b>1–7</b> — приёмы, <b>R</b> — ульта; бьют туда, где курсор</li>
-      <li><b>Колесо</b> — ближе и дальше, <b>F</b> — весь экран, <b>Tab</b> — арсенал</li>
-    </ul>
-
   </div>
   <div id="fail" class="gutter" hidden>Этому браузеру не хватает WebGL. Откройте страницу в свежем Chrome, Safari или Firefox.</div>
 </div>

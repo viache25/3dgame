@@ -960,15 +960,16 @@ function buildWorld(scene, opt) {
       }
       rg.attributes.position.needsUpdate = true;
     },
-    plain() { // a device that cannot keep up loses the mirror: the street turns dry
-      if (mirror) { scene.remove(mirror); mirror = null; groundMat.alphaMap = null; groundMat.transparent = false; groundMat.needsUpdate = true; }
+    setMirror(on) { // without the mirror the street is simply dry asphalt: far cheaper to draw
+      if (!mirror) return;
+      mirror.visible = on; groundMat.alphaMap = on ? puddles : null; groundMat.transparent = on; groundMat.needsUpdate = true;
     },
   };
 }
 
 // Every sound is made on the spot from noise and sine waves; there are no recordings.
 const SFX = (function () {
-  let ac = null, out = null, lp = null, noise = null, wind = null, lastThud = 0, muted = false;
+  let ac = null, out = null, lp = null, fx = null, mus = null, noise = null, wind = null, lastThud = 0, muted = false, fxVol = 0.8, musVol = 0.45, heat = 0, beat = 0, nextT = 0;
   function start() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -978,6 +979,10 @@ const SFX = (function () {
     lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 18000; // closes down while time is slowed
     const comp = ac.createDynamicsCompressor();
     lp.connect(comp); comp.connect(out); out.connect(ac.destination);
+    fx = ac.createGain(); fx.gain.value = fxVol; fx.connect(lp);     // everything that happens
+    mus = ac.createGain(); mus.gain.value = musVol; mus.connect(lp); // the track under it
+    nextT = ac.currentTime + 0.15;
+    setInterval(track, 70);
     noise = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -987,7 +992,38 @@ const SFX = (function () {
     wind = ac.createGain(); wind.gain.value = 0.035;
     const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.13; lg.gain.value = 170;
     lfo.connect(lg); lg.connect(f.frequency); lfo.start();
-    src.connect(f); f.connect(wind); wind.connect(lp); src.start();
+    src.connect(f); f.connect(wind); wind.connect(fx); src.start();
+  }
+  // The track: four bars in D minor that play themselves. Out of a fight only the pad and a slow bass; in one, drums and a running line join in.
+  const S16 = 60 / 104 / 4, ROOTS = [38, 38, 34, 36], BASS = [0, null, 0, null, 0, null, 3, null, 0, null, 0, 10, null, 7, 10, null], RUN = [0, 3, 7, 10, 12, 10, 7, 3];
+  const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function voice(type, freq, t, dur, vol, cut) {
+    const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t); f.type = 'lowpass'; f.frequency.setValueAtTime(cut, t); f.Q.value = 3;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.2)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(f); f.connect(g); g.connect(mus); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function hit(freq, type, t, dur, vol) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise; s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = 0.9;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(mus); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+  }
+  function track() {
+    if (!ac || ac.state !== 'running') return;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05; // the tab was asleep: pick the beat up from now
+    while (nextT < ac.currentTime + 0.25) {
+      const s = beat % 16, root = ROOTS[Math.floor(beat / 16) % 4], t = nextT, hot = heat > 0.5, b = BASS[s];
+      if (b !== null && (hot || s % 8 === 0)) voice('sawtooth', hz(root + b), t, S16 * 1.8, hot ? 0.2 : 0.13, hot ? 950 : 380);
+      if (s === 0) for (const iv of [12, 19, 24, 27]) voice('triangle', hz(root + iv), t, S16 * 16.5, 0.04, 1500);
+      if (hot) {
+        if (s % 4 === 0) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(44, t + 0.12); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); o.connect(g); g.connect(mus); o.start(t); o.stop(t + 0.25); }
+        if (s % 4 === 2) hit(7500, 'highpass', t, 0.04, 0.06);
+        if (s === 4 || s === 12) hit(1900, 'bandpass', t, 0.12, 0.13);
+        if (s % 2 === 0) voice('square', hz(root + 24 + RUN[(s / 2) % 8]), t, S16 * 0.95, 0.026, 2400);
+      }
+      nextT += S16; beat++;
+    }
   }
   const now = () => ac.currentTime;
   function burst(freq, q, type, dur, vol, sweepTo, delay) {
@@ -996,19 +1032,22 @@ const SFX = (function () {
     f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
     if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.3)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(lp); s.start(t, Math.random()); s.stop(t + dur + 0.05);
+    s.connect(f); f.connect(g); g.connect(fx); s.start(t, Math.random()); s.stop(t + dur + 0.05);
   }
   function tone(freq, dur, vol, type, to, delay) {
     const t = now() + (delay || 0), o = ac.createOscillator(), g = ac.createGain();
     o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
     if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(lp); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(fx); o.start(t); o.stop(t + dur + 0.05);
   }
   const ok = () => ac && !muted && ac.state === 'running';
   return {
     start,
     mute(m) { muted = m; if (out) out.gain.value = m ? 0 : 0.9; },
+    volume(v) { fxVol = v; if (fx) fx.gain.value = v; },
+    musicVolume(v) { musVol = v; if (mus) mus.gain.value = v; },
+    music(h) { heat = h; }, // 0: quiet, between fights; 1: a fight is on
     slow(k) { if (ac) lp.frequency.setTargetAtTime(k < 0.5 ? 1100 : 18000, now(), 0.08); },
     swing() { if (ok()) burst(900, 1.2, 'bandpass', 0.16, 0.22, 3600); },
     // the blade going through: a ring of steel over a crack of clay; n is how many pieces it opened
@@ -1136,7 +1175,7 @@ const SFX = (function () {
   // ---- state
   const STANDOFF = 1.35, ARENA = 38, TOP = 3.0, MAX_PARTS = TOUCH ? 150 : 240, HARD_PARTS = TOUCH ? 260 : 420; // TOP: how high the blade reaches
   const CUT = { minPiece: 2.5e-4, minHalf: 2e-5, tol: 0.012 };
-  const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false, arsenal: false, flash: 0, demoQ: null, dummyAt: 0, kick: 0, shx: 1, shz: 0, ult: 0, zoom: 1 };
+  const S = { mode: 'title', time: 0, real: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusK: 0, focusHeld: false, focusLock: false, shake: 0, wave: 0, queue: [], spawnT: 0, next: 0, kills: 0, parts: 0, best: 0, paused: false, hurtK: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, autoPick: false, arsenal: false, flash: 0, demoQ: null, dummyAt: 0, kick: 0, shx: 1, shz: 0, ult: 0, zoom: 1, sheet: 'title', playT: 0, heat: 0 };
   const P = { x: 0, z: 0, yaw: 0, hp: 100, maxHp: 100, focus: 1, speed: 0, phase: 0, dash: 0, dashCd: 0, dx: 0, dz: 1, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, nextSlash: 0, queue: null, flip: 0, dead: false, rig: null, vx: 0, vz: 0, y: 0, over: 0, ultId: 'over', up: {}, cd: {}, slots: [], act: null, stance: 0, front: 1, combo: 0, comboAt: 0, reach: 2.9, lungeMax: 3.8, drain: 0.24, run: 6.3, dashGap: 0.6, leech: 0, slowKill: 0.3 };
   const bodies = [], enemies = [], solids = [];
   const keys = {};
@@ -2148,7 +2187,7 @@ const SFX = (function () {
     if (P.hp <= 0) die();
   }
   function die() {
-    P.hp = 0; P.dead = true; S.focusOn = false; P.act = null; P.y = 0; katana.visible = true;
+    P.hp = 0; P.dead = true; S.focusOn = false; P.act = null; P.y = 0; katana.visible = true; $('abils').hidden = true;
     const rig = P.rig;
     rig.root.updateMatrixWorld(true);
     for (const b of rig.list) {
@@ -2161,7 +2200,16 @@ const SFX = (function () {
     SFX.fall();
     S.mode = 'dead'; S.slowT = 1.2;
     if (S.wave > S.best) { S.best = S.wave; try { localStorage.setItem('blade-clay-best', String(S.best)); } catch (e) { /* storage may be closed */ } }
-    setTimeout(() => { if (S.mode !== 'dead') return; $('deadStats').textContent = 'Волна ' + S.wave + ' · уровень ' + S.level + ' · сражено ' + S.kills + ' · кусков ' + S.parts + (S.best ? ' · рекорд: волна ' + S.best : ''); $('dead').hidden = false; }, 1500);
+    setTimeout(() => {
+      if (S.mode !== 'dead') return;
+      const box = $('deadStats'), t = Math.floor(S.playT || 0);
+      box.textContent = '';
+      for (const [v, label] of [[S.wave, 'Волна'], [S.level, 'Уровень'], [S.kills, 'Сражено'], [S.parts, 'Кусков'], [Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'), 'Время'], [S.best || S.wave, 'Рекорд, волна']]) {
+        const d = document.createElement('div'), n = document.createElement('b'), l = document.createElement('span');
+        n.textContent = v; l.textContent = label; d.append(n, l); box.append(d);
+      }
+      show('dead');
+    }, 1500);
   }
 
   // ---- waves
@@ -2259,32 +2307,43 @@ const SFX = (function () {
   }
   window.addEventListener('keydown', (ev) => {
     if (ev.repeat) return;
-    keys[ev.code] = true;
     if (S.choosing) { const i = ['Digit1', 'Digit2', 'Digit3', 'Numpad1', 'Numpad2', 'Numpad3'].indexOf(ev.code); if (i >= 0) choose(i % 3); return; }
+    if (ev.code === 'KeyF' && S.sheet !== 'settings') fullScreen();
+    if (ev.code === 'Tab' && S.sheet !== 'settings' && S.sheet !== 'controls') { ev.preventDefault(); if (S.sheet === 'arsenal') arsenal(false); else if (S.mode !== 'play') arsenal(true); else if (!P.dead) { if (!S.paused) pause(true); arsenal(true); } return; }
+    if (S.sheet) { // a menu is up: arrows or W and S walk its items, Enter and space press the one in focus, Esc goes back
+      const items = Array.from($(S.sheet).querySelectorAll('.list .item')), i = items.indexOf(document.activeElement);
+      if (items.length && (ev.code === 'ArrowDown' || ev.code === 'KeyS')) { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (items.length && (ev.code === 'ArrowUp' || ev.code === 'KeyW')) { ev.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if (ev.code === 'Escape') { if (S.sheet === 'pause') pause(false); else if (S.sheet !== 'title' && S.sheet !== 'dead') back(); }
+      return;
+    }
+    keys[ev.code] = true;
     const num = Math.max(['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7'].indexOf(ev.code), ['Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7'].indexOf(ev.code));
     if (num >= 0) useAbility(num);
     if (ev.code === 'KeyR') useUlt();
-    if (ev.code === 'KeyF') fullScreen();
-    if (ev.code === 'Tab') { ev.preventDefault(); if (!$('arsenal').hidden) arsenal(false); else if (S.mode === 'title') arsenal(true); else if (S.mode === 'play' && !P.dead && !S.choosing) { pause(true); arsenal(true); } }
-    if (ev.code === 'Space') { ev.preventDefault(); if (S.mode === 'play') dash(); else if (S.mode === 'title') begin(); else if (!$('dead').hidden) begin(); }
-    if (ev.code === 'Enter' && (S.mode === 'title' || !$('dead').hidden)) begin();
-    if (ev.code === 'Escape' && !$('arsenal').hidden) { arsenal(false); return; }
-    if ((ev.code === 'Escape' || ev.code === 'KeyP') && S.mode === 'play') pause(!S.paused);
+    if (ev.code === 'Space') { ev.preventDefault(); dash(); }
+    if ((ev.code === 'Escape' || ev.code === 'KeyP') && S.mode === 'play' && !P.dead) pause(true);
     if (ev.code.startsWith('Arrow')) ev.preventDefault();
   });
   window.addEventListener('keyup', (ev) => { keys[ev.code] = false; });
   window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; S.focusHeld = false; });
   document.addEventListener('visibilitychange', () => { if (document.hidden && S.mode === 'play') pause(true); });
-  $('start').addEventListener('click', begin);
-  $('again').addEventListener('click', begin);
+  $('start').addEventListener('click', () => begin());
+  $('again').addEventListener('click', () => begin());
+  $('restart').addEventListener('click', () => begin());
   $('resume').addEventListener('click', () => pause(false));
+  $('quit').addEventListener('click', toTitle);
+  $('deadQuit').addEventListener('click', toTitle);
+  $('deadArsenal').addEventListener('click', () => arsenal(true));
+  for (const b of document.querySelectorAll('[data-open]')) b.addEventListener('click', () => show(b.dataset.open));
+  for (const b of document.querySelectorAll('[data-back]')) b.addEventListener('click', back);
+  for (const b of document.querySelectorAll('.item')) b.addEventListener('pointerenter', () => b.focus({ preventScroll: true })); // the mouse and the keys share one highlight
   $('btnDash').addEventListener('pointerdown', (ev) => { ev.preventDefault(); dash(); });
   $('btnFocus').addEventListener('pointerdown', (ev) => { ev.preventDefault(); focusBtn = !focusBtn; });
   $('openArsenal').addEventListener('click', () => arsenal(true));
   $('pauseArsenal').addEventListener('click', () => arsenal(true));
   $('arsenalDone').addEventListener('click', () => arsenal(false));
   $('fullBtn').addEventListener('click', fullScreen);
-  $('sound').addEventListener('click', () => { const off = $('sound').getAttribute('aria-pressed') !== 'true'; $('sound').setAttribute('aria-pressed', String(off)); $('sound').textContent = off ? 'Звук выкл' : 'Звук вкл'; SFX.mute(off); });
   function fullScreen() { // a browser may refuse; then nothing happens
     try { if (document.fullscreenElement) document.exitFullscreen(); else { const r = document.documentElement.requestFullscreen(); if (r && r.catch) r.catch(() => {}); } } catch (e) { /* not allowed here */ }
   }
@@ -2297,7 +2356,59 @@ const SFX = (function () {
     return [camera.position.x + d0.x * t, camera.position.z + d0.z * t];
   }
   stage.addEventListener('wheel', (ev) => { ev.preventDefault(); S.zoom = clamp(S.zoom * (ev.deltaY > 0 ? 1.08 : 0.925), 0.68, 1.45); }, { passive: false });
-  function pause(on) { S.paused = on; $('pause').hidden = !on; swipe = null; stick = null; showStick(); }
+  // ---- screens: one sheet at a time over the picture
+  const SHEETS = ['title', 'pause', 'settings', 'controls', 'arsenal', 'dead'];
+  function show(id) {
+    for (const k of SHEETS) $(k).hidden = k !== id;
+    S.sheet = id || null;
+    document.body.classList.toggle('menu-up', !!id);
+    if (id) { const b = $(id).querySelector('.list .item'); if (b) b.focus({ preventScroll: true }); }
+  }
+  const home = () => (S.mode === 'title' ? 'title' : S.mode === 'dead' ? 'dead' : S.paused ? 'pause' : null); // the sheet a sub-screen goes back to
+  function back() { if (S.sheet === 'arsenal') arsenal(false); else show(home()); }
+  function pause(on) {
+    S.paused = on; swipe = null; stick = null; showStick();
+    for (const k in keys) keys[k] = false;
+    S.focusHeld = false;
+    if (on) $('pauseLine').textContent = 'Волна ' + S.wave + ' · уровень ' + S.level + ' · сражено ' + S.kills;
+    show(on ? 'pause' : null);
+  }
+  function bestLine() { $('bestLine').textContent = S.best ? 'Рекорд: волна ' + S.best : 'Первый забег впереди'; }
+  function toTitle() {
+    clearWorld(); buildProps(); resetUps(); newHero();
+    waves.length = 0; P.over = 0; katana.visible = true;
+    Object.assign(S, { mode: 'title', paused: false, choosing: false, choice: null, pending: 0, arsenal: false, demoQ: null, focusOn: false, scale: 1, slowT: 0, stop: 0, queue: [], next: 0, ult: 0, flash: 0 });
+    $('hud').hidden = true; $('abils').hidden = true; $('levelup').hidden = true; $('hint').classList.add('gone'); $('banner').classList.remove('on');
+    bestLine(); show('title');
+  }
+  // ---- settings, kept between visits
+  const OPT = { sfx: 80, music: 45, gfx: TOUCH ? 'mid' : 'high', shake: 100, flash: true };
+  try {
+    const j = JSON.parse(localStorage.getItem('blade-neon-settings') || 'null') || {};
+    for (const k of ['sfx', 'music', 'shake']) if (typeof j[k] === 'number' && j[k] >= 0 && j[k] <= 100) OPT[k] = j[k];
+    if (['low', 'mid', 'high'].indexOf(j.gfx) >= 0) OPT.gfx = j.gfx;
+    if (typeof j.flash === 'boolean') OPT.flash = j.flash;
+  } catch (e) { /* storage may be closed */ }
+  function setQuality(q) { // high: the wet mirror and full sharpness; mid: dry street; low: fewer pixels and no shadows
+    const hi = q === 'high', lo = q === 'low';
+    pr = Math.min(window.devicePixelRatio || 1, hi ? 2 : lo ? 1 : 1.5) * (lo ? 0.8 : 1);
+    renderer.setPixelRatio(pr); composer.setPixelRatio(pr);
+    W.setMirror(hi);
+    renderer.shadowMap.enabled = !lo; W.sun.castShadow = !lo;
+    bloom.strength = lo ? 0.5 : 0.7;
+    vw = 0; resize();
+  }
+  function applyOpt(save) {
+    SFX.volume(OPT.sfx / 100); SFX.musicVolume(OPT.music / 100);
+    setQuality(OPT.gfx);
+    for (const [id, k] of [['optSfx', 'sfx'], ['optMusic', 'music'], ['optShake', 'shake']]) { $(id).value = OPT[k]; $(id + 'Out').textContent = OPT[k] + '%'; }
+    for (const b of $('optGfx').children) b.setAttribute('aria-pressed', String(b.dataset.v === OPT.gfx));
+    for (const b of $('optFlash').children) b.setAttribute('aria-pressed', String((b.dataset.v === '1') === OPT.flash));
+    if (save) try { localStorage.setItem('blade-neon-settings', JSON.stringify(OPT)); } catch (e) { /* storage may be closed */ }
+  }
+  for (const [id, k] of [['optSfx', 'sfx'], ['optMusic', 'music'], ['optShake', 'shake']]) $(id).addEventListener('input', () => { OPT[k] = +$(id).value; applyOpt(true); if (k === 'sfx') SFX.swing(); });
+  for (const b of $('optGfx').children) b.addEventListener('click', () => { OPT.gfx = b.dataset.v; quality = 0; applyOpt(true); });
+  for (const b of $('optFlash').children) b.addEventListener('click', () => { OPT.flash = b.dataset.v === '1'; applyOpt(true); });
   function dash() {
     if (P.dead || P.dashCd > 0 || S.paused || P.act) return;
     let dx = P.dx, dz = P.dz;
@@ -2311,10 +2422,10 @@ const SFX = (function () {
     clearWorld(); buildProps(); resetUps(); newHero();
     waves.length = 0; for (const id of ABIL_IDS) P.cd[id] = 0;
     P.over = 0; S.ult = 0;
-    katana.visible = true; $('arsenal').hidden = true; $('abils').hidden = false;
+    katana.visible = true; $('abils').hidden = false;
     Object.assign(S, { arsenal: false, demoQ: null, flash: 0, xp: 0, level: 1, need: 8, pending: 0, choosing: false, choice: null, mode: 'play', time: 0, scale: 1, stop: 0, slowT: 0, focusOn: false, focusLock: false, wave: 0, queue: [], next: 0, kills: 0, parts: 0, paused: false, hurtK: 0, cutOnce: false });
     seed = typeof fixedSeed === 'number' ? fixedSeed : (Date.now() & 0xffffff) | 1; focusBtn = false;
-    $('title').hidden = true; $('dead').hidden = true; $('pause').hidden = true; $('hud').hidden = false; $('hint').classList.remove('gone');
+    show(null); $('levelup').hidden = true; $('hud').hidden = false; $('hint').classList.remove('gone'); S.playT = 0;
     startWave(1);
   }
 
@@ -2373,10 +2484,11 @@ const SFX = (function () {
   // On the title screen the arsenal comes with a practice idol, and every choice is shown on it at once.
   function arsenal(on) {
     S.arsenal = on && S.mode === 'title';
-    $('arsenal').hidden = !on;
-    if (on) { $('title').hidden = true; $('pause').hidden = true; }
-    else if (S.mode === 'title') { $('title').hidden = false; for (const e of enemies) if (!e.dead) { e.dead = true; scene.remove(e.rig.root); MODELS.dispose(e.rig); } enemies.length = 0; S.demoQ = null; }
-    else if (S.paused) $('pause').hidden = false;
+    if (on) show('arsenal');
+    else {
+      if (S.mode === 'title') { for (const e of enemies) if (!e.dead) { e.dead = true; scene.remove(e.rig.root); MODELS.dispose(e.rig); } enemies.length = 0; S.demoQ = null; }
+      show(home());
+    }
     if (S.arsenal) { S.dummyAt = 0; dummy(); }
   }
   function dummy() {
@@ -2483,7 +2595,7 @@ const SFX = (function () {
     camAt.lerp(v1, 1 - Math.exp(-dt * 10));
     S.kick = Math.max(0, S.kick - dt * 6);
     S.shake = Math.max(0, S.shake - dt * 2.4);
-    const sh = S.shake * S.shake * 0.5, wob = Math.sin(S.real * 78) * sh * 0.9, kd = dist * (1 - 0.06 * S.kick) * S.zoom;
+    const sh = S.shake * S.shake * 0.5 * (OPT.shake / 100), wob = Math.sin(S.real * 78) * sh * 0.9, kd = dist * (1 - 0.06 * S.kick) * S.zoom;
     camera.position.set(camAt.x + (rnd() - 0.5) * sh * 0.6 + S.shx * wob, camAt.y + Math.sin(pitch) * kd + (rnd() - 0.5) * sh * 0.6, camAt.z + Math.cos(pitch) * kd + S.shz * wob);
     camera.lookAt(camAt.x, camAt.y + 0.3 * f, camAt.z);
     const fov = (tall ? 54 : 40) - 2.2 * S.kick;
@@ -2529,12 +2641,10 @@ const SFX = (function () {
     SPARKS.mat.uniforms.uScale.value = scale; DUST.mat.uniforms.uScale.value = scale;
   }
   let last = 0, slowFrames = 0, quality = 0;
-  function lowerQuality() { // a device that cannot keep up gets fewer pixels first, then loses shadows
+  function lowerQuality() { // a machine that cannot keep up is moved one preset down; the choice in the settings is not overwritten
     quality++;
-    if (quality === 1) { pr = Math.min(pr, 1); W.plain(); }
-    else { pr = Math.min(pr, 0.75); renderer.shadowMap.enabled = false; W.sun.castShadow = false; }
-    renderer.setPixelRatio(pr); composer.setPixelRatio(pr);
-    vw = 0; resize();
+    OPT.gfx = OPT.gfx === 'high' ? 'mid' : 'low';
+    applyOpt(false);
   }
   function frame(now) {
     requestAnimationFrame(frame);
@@ -2549,6 +2659,9 @@ const SFX = (function () {
   function step(dtR) {
     if (S.choosing) return; // the world waits while a lesson is chosen
     S.real += dtR;
+    if (S.mode === 'play' && !P.dead) S.playT += dtR;
+    const fight = S.mode === 'play' && !P.dead && enemies.some((e) => !e.dead) ? 1 : 0;
+    if (fight !== S.heat) { S.heat = fight; SFX.music(fight); }
     // slowed time: held on purpose while there is focus left, and for a breath after a kill
     const wantFocus = (S.focusHeld || keys.ShiftLeft || keys.ShiftRight || focusBtn) && S.mode === 'play' && !P.dead;
     if (!wantFocus) S.focusLock = false;
@@ -2595,8 +2708,8 @@ const SFX = (function () {
     grade.uniforms.hurt.value = Math.max(S.hurtK, P.hp < 30 && !P.dead ? 0.25 + 0.12 * Math.sin(S.real * 5) : 0);
     grade.uniforms.calm.value = S.focusK;
     S.flash = Math.max(0, S.flash - dtR * 7);
-    grade.uniforms.flash.value = CALM_MOTION ? 0 : S.flash;
-    grade.uniforms.ab.value = CALM_MOTION ? 0.0015 : 0.0022 + S.shake * S.shake * 0.02 + S.flash * 0.012 + S.focusK * 0.003;
+    grade.uniforms.flash.value = CALM_MOTION || !OPT.flash ? 0 : S.flash;
+    grade.uniforms.ab.value = CALM_MOTION ? 0.0015 : 0.0022 + S.shake * S.shake * 0.02 * (OPT.shake / 100) + (OPT.flash ? S.flash * 0.012 : 0) + S.focusK * 0.003;
     grade.uniforms.uT.value = S.real % 10;
     W.step(dtR, camAt.x, camAt.z);
     const at = S.mode === 'play' && !P.dead ? mouseGround() : null;
@@ -2611,9 +2724,9 @@ const SFX = (function () {
 
   // the title screen shows the place with a few things to look at
   buildBar();
-  buildProps(); resetUps(); newHero(); applyLoad(false);
+  buildProps(); resetUps(); newHero(); applyLoad(false); applyOpt(false); bestLine(); show('title');
   P.rig.root.visible = true;
   resize();
-  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
+  window.__game = { renderer, S, P, bodies, enemies, slash, tapSlash, begin, step, camera, spawnIdol, dash, hurt, gainXp, choose, applyUps, UPS, KINDS, show, pause, toTitle, OPT, applyOpt, reticle, useAbility, useUlt, cast: (id) => useAbility(ORDER.indexOf(id)), ORDER, arsenal, ABIL, ULTS, STYLES, LOAD, applyLoad, waves, bolts, W, noMouse: () => { mouse.seen = false; }, frame: () => composer.render(), setFocus: (v) => { focusBtn = v; }, canvas };
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();

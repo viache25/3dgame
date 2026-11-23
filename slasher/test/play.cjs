@@ -26,6 +26,25 @@ const out = (n) => path.join(__dirname, '../out', n);
   const shot = async (name) => { await p.evaluate(() => __game.frame()); await p.screenshot({ path: out(tag + name + '.png') }); };
   const run = (sec) => p.evaluate((s) => { for (let i = 0; i < Math.round(s * 60); i++) __game.step(1 / 60); }, sec);
   await shot('1-title');
+  // the main menu: the keys walk it, Enter opens a screen, Esc comes back; settings are applied at once and kept
+  st = await p.evaluate(() => ({ items: document.querySelectorAll('#title .item').length, focus: document.activeElement && document.activeElement.id, sheet: __game.S.sheet }));
+  assert(st.items === 4 && st.focus === 'start' && st.sheet === 'title', 'the main menu is up with Play in focus: ' + JSON.stringify(st));
+  await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown');
+  await p.keyboard.press('Enter');
+  assert(await p.evaluate(() => __game.S.sheet === 'controls' && !document.getElementById('controls').hidden && document.getElementById('title').hidden), 'three steps down and Enter: the controls screen');
+  await shot('0b-controls');
+  await p.keyboard.press('Escape');
+  assert(await p.evaluate(() => __game.S.sheet === 'title'), 'Esc goes back to the main menu');
+  await p.click('#title [data-open="settings"]');
+  await p.click('#optGfx [data-v="low"]');
+  await p.evaluate(() => { const r = document.getElementById('optShake'); r.value = 40; r.dispatchEvent(new Event('input')); });
+  st = await p.evaluate(() => ({ opt: __game.OPT, kept: JSON.parse(localStorage.getItem('blade-neon-settings')), ratio: __game.renderer.getPixelRatio(), shadows: __game.renderer.shadowMap.enabled, mirror: __game.W.mirror ? __game.W.mirror.visible : false }));
+  assert(st.opt.gfx === 'low' && st.kept.gfx === 'low' && st.kept.shake === 40 && st.ratio < 1 && !st.shadows && !st.mirror, 'low graphics: fewer pixels, no shadows, no mirror, and it is kept: ' + JSON.stringify(st));
+  await shot('0c-settings');
+  await p.click('#optGfx [data-v="high"]');
+  await p.evaluate(() => { const r = document.getElementById('optShake'); r.value = 100; r.dispatchEvent(new Event('input')); });
+  await p.click('#settings [data-back]');
+  assert(await p.evaluate(() => __game.S.sheet === 'title' && __game.renderer.shadowMap.enabled), 'back to the menu on high again');
   // the arsenal: pick a style and a technique, each is tried on the practice idol at once, and the choice is kept
   await p.click('#openArsenal');
   await run(1.2);
@@ -145,6 +164,14 @@ const out = (n) => path.join(__dirname, '../out', n);
   assert(st.kills >= 4, 'taps fell idols: ' + JSON.stringify(st));
   await run(0.3);
   await shot('7-taps');
+  // pause: Esc stops the world and puts up a menu; from it the run can be left for the main menu
+  await p.evaluate(() => { __game.P.invul = 99; });
+  await p.keyboard.press('Escape');
+  st = await p.evaluate(() => ({ paused: __game.S.paused, sheet: __game.S.sheet, items: document.querySelectorAll('#pause .item').length, t: __game.S.time }));
+  assert(st.paused && st.sheet === 'pause' && st.items === 6, 'Esc pauses: ' + JSON.stringify(st));
+  await shot('7a-pause');
+  await p.keyboard.press('Escape');
+  assert(await p.evaluate(() => !__game.S.paused && __game.S.sheet === null), 'Esc again resumes');
   // a new level stops the world and offers three lessons; picking one changes the wanderer
   await p.evaluate(() => { const g = __game; clearIdols(); g.S.autoPick = false; g.P.invul = 99; g.gainXp(g.S.need); for (let i = 0; i < 200 && !g.S.choosing; i++) g.step(1 / 60); });
   await p.waitForSelector('#levelup:not([hidden])', { timeout: 5000 });
@@ -311,6 +338,12 @@ const out = (n) => path.join(__dirname, '../out', n);
   assert.strictEqual(st, 'dead');
   await p.waitForSelector('#dead:not([hidden])', { timeout: 20000 });
   await shot('8-dead');
+  assert(await p.evaluate(() => document.querySelectorAll('#deadStats div').length === 6 && document.activeElement.id === 'again'), 'the run is tallied and Again is in focus');
+  await p.click('#deadQuit');
+  st = await p.evaluate(() => ({ mode: __game.S.mode, sheet: __game.S.sheet, hud: document.getElementById('hud').hidden, idols: __game.enemies.length, best: document.getElementById('bestLine').textContent }));
+  assert(st.mode === 'title' && st.sheet === 'title' && st.hud && st.idols === 0 && /Рекорд/.test(st.best), 'back at the main menu with the record shown: ' + JSON.stringify(st));
+  await p.click('#start'); // the cursor is still where the last button was, and whatever it rests on takes the focus, so this is a click
+  assert(await p.evaluate(() => __game.S.mode === 'play' && __game.S.sheet === null), 'Play starts a new run');
   assert.deepStrictEqual(errors, [], 'page errors:\n' + errors.join('\n'));
   console.log('play ok', JSON.stringify(await p.evaluate(() => ({ kills: __game.S.kills, parts: __game.S.parts, wave: __game.S.wave }))));
   await b.close();
