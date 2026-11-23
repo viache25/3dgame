@@ -2988,12 +2988,13 @@ const SFX = (function () {
     if (['low', 'mid', 'high'].indexOf(j.gfx) >= 0) OPT.gfx = j.gfx;
     if (typeof j.flash === 'boolean') OPT.flash = j.flash;
   } catch (e) { /* storage may be closed */ }
+  const MIRROR = false; // the wet ground mirroring the scene is switched off for now; true brings it back on high graphics
   let bloomBase = 0.72;
   function setQuality(q) { // high: the wet mirror and full sharpness; mid: dry street; low: fewer pixels and no shadows
     const hi = q === 'high', lo = q === 'low';
     pr = Math.min(window.devicePixelRatio || 1, hi ? 2 : lo ? 1 : 1.5) * (lo ? 0.8 : 1);
     renderer.setPixelRatio(pr); composer.setPixelRatio(pr);
-    W.setMirror(hi);
+    W.setMirror(hi && MIRROR);
     renderer.shadowMap.enabled = !lo; W.sun.castShadow = !lo;
     bloomBase = lo ? 0.5 : 0.72;
     vw = 0; resize();
