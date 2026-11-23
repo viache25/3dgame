@@ -2481,41 +2481,44 @@ const SFX = (function () {
     SFX.swing();
     if (made) scored(made, killed);
   }
-  // A blow at what the blade cannot reach is thrown instead: a crescent of fire leaves the blade and flies that way, cutting what it meets.
-  // tilt: how far the crescent leans from flat, radians
+  // Every blow lets fire off the blade: a wide, low crescent that runs a few paces the way he struck and cuts what it meets. It is the
+  // ordinary attack, so it is light: no weight on the camera, no wall of fire behind it. tilt: how far it leans from flat, radians
+  function fireWave(dx, dz, tilt) {
+    const big = P.over ? 1.4 : 1, n = new T.Vector3(dz * Math.sin(tilt), Math.cos(tilt), -dx * Math.sin(tilt)), f = new T.Vector3(dx, 0, dz), sd = new T.Vector3().crossVectors(n, f);
+    const w = { x: P.x + dx * 0.8, z: P.z + dz * 0.8, y: 1.15, ax: dx, az: dz, d: 0, max: 6.5 * big, speed: 21, half: 2.3 * big, top: 3.2, kills: S.kills, flames: 2, tail: 0, trail: null };
+    w.jobs = [{ n, d: n.x * w.x + n.y * 1.15 + n.z * w.z, u: f }];
+    w.trail = crescent({ x: w.x, y: 1.15, z: w.z }, f, sd, -1.15, 1.15, 1.5 * big, 2.7 * big, 0.05, { hold: 9, fade: 0.2, gain: 0.85, flame: Math.max(style.flame, 0.6), follow: () => [w.x - w.ax * 1.9 * big, 1.15, w.z - w.az * 1.9 * big] });
+    waves.push(w);
+  }
+  // a stroke drawn where the blade cannot reach: he swings where he stands and the fire goes that way
   function throwWave(dx, dz, tilt) {
     if ((S.mode !== 'play' && !S.arsenal) || P.dead || S.paused || P.act || P.dash > 0 || S.real < P.nextSlash) return false;
-    P.yaw = Math.atan2(dx, dz); P.queue = null; P.nextSlash = S.real + (P.over ? 0.16 : 0.3); P.stance = 1; P.front = 1; P.fireK = 1.4;
+    P.yaw = Math.atan2(dx, dz); P.queue = null; P.nextSlash = S.real + (P.over ? 0.08 : 0.16); P.stance = 1; P.front = 1; P.fireK = 1.2;
     const n = new T.Vector3(dz * Math.sin(tilt), Math.cos(tilt), -dx * Math.sin(tilt)), f = new T.Vector3(dx, 0, dz), sd = new T.Vector3().crossVectors(n, f), pv = new T.Vector3(P.x, 1.25, P.z);
     P.sw = { t: 0, T: 0.12, pv, f, s: sd, a0: -1.8, a1: 1.3, turn: 1, heavy: false };
-    crescent(pv, f, sd, -1.8, 1.3, 0.45, P.reach * 1.05, 0.12, { gain: 1.25 });
-    const big = P.over ? 1.5 : 1, w = { x: P.x + dx * 0.9, z: P.z + dz * 0.9, y: 1.2, ax: dx, az: dz, d: 0, max: 12 * big, speed: 27, half: 1.4 * big, top: 3.4, kills: S.kills, flames: 3, tail: 0, trail: null, burn: 1.1 * big };
-    w.jobs = [{ n, d: n.x * w.x + n.y * 1.2 + n.z * w.z, u: f }];
-    w.trail = crescent({ x: w.x, y: 1.2, z: w.z }, f, sd, -1.05, 1.05, 0.7 * big, 1.8 * big, 0.05, { hold: 9, fade: 0.22, gain: 1.4, flame: Math.max(style.flame, 0.6), follow: () => [w.x - w.ax * 1.4 * big, 1.2, w.z - w.az * 1.4 * big] });
-    waves.push(w);
-    FLARES.add(P.x + dx * 1.5, 1.3, P.z + dz * 1.5, style.trailA, 4, 0.3, 11);
-    SFX.swing(true); S.shake = Math.max(S.shake, 0.2); S.kick = Math.max(S.kick, 0.3);
+    crescent(pv, f, sd, -1.8, 1.3, 0.45, P.reach * 1.05, 0.12, { gain: 1.1 });
+    fireWave(dx, dz, tilt);
+    SFX.swing();
     return true;
   }
   function tapSlash(x, y) {
     // which way: toward the cursor. Where: on the nearest synth within reach that way, or else a pace and a half in front of him
     camera.updateMatrixWorld(); dirAt(x, y, d0);
-    let dx = Math.sin(P.yaw), dz = Math.cos(P.yaw), away = 0, near = false;
-    if (d0.y < -0.02) { const t = -camera.position.y / d0.y, gx = camera.position.x + d0.x * t - P.x, gz = camera.position.z + d0.z * t - P.z, l = Math.hypot(gx, gz); if (l > 0.3) { dx = gx / l; dz = gz / l; away = l; } }
+    let dx = Math.sin(P.yaw), dz = Math.cos(P.yaw);
+    if (d0.y < -0.02) { const t = -camera.position.y / d0.y, gx = camera.position.x + d0.x * t - P.x, gz = camera.position.z + d0.z * t - P.z, l = Math.hypot(gx, gz); if (l > 0.3) { dx = gx / l; dz = gz / l; } }
     let tx = P.x + dx * 1.7, ty = 1.05, tz = P.z + dz * 1.7, best = P.reach + 0.6;
     for (const e of enemies) {
       if (e.dead) continue;
       const ex = e.x - P.x, ez = e.z - P.z, d = Math.hypot(ex, ez);
-      if (d < best && (d < 0.8 || (ex * dx + ez * dz) / d > 0.4)) { best = d; tx = e.x; ty = Math.min(1.7, 1.05 * e.scale); tz = e.z; near = true; }
+      if (d < best && (d < 0.8 || (ex * dx + ez * dz) / d > 0.4)) { best = d; tx = e.x; ty = Math.min(1.7, 1.05 * e.scale); tz = e.z; }
     }
-    if (!near && away > P.reach + 0.5) return throwWave(dx, dz, P.flip++ % 2 ? 0.45 : -0.45); // nobody within reach that way, and the cursor is far: the blow is thrown
     pj.set(tx, ty, tz).project(camera);
     const cx = (pj.x * 0.5 + 0.5) * vw, cy = (0.5 - pj.y * 0.5) * vh;
     if (S.real - P.comboAt > 1.1) P.combo = 0;
     // down to the right, down to the left, a flat cut on the turn, two turns in the air, and a blow straight down; overloaded, only the last three
     const seq = P.over ? [[0.06, 1], [Math.PI - 0.06, 2], [Math.PI / 2, 3]] : [[-0.5, 0], [Math.PI + 0.5, 0], [0.06, 1], [Math.PI - 0.06, 2], [Math.PI / 2, 3]];
     const pick = seq[P.combo % seq.length], ang = pick[0], L = clamp(vh * 0.17, 70, 180) * (pick[1] ? 1.3 : 1);
-    if (slash(cx - Math.cos(ang) * L, cy + Math.sin(ang) * L, cx + Math.cos(ang) * L, cy - Math.sin(ang) * L, pick[1])) { P.combo++; P.comboAt = S.real; INK.pop(); }
+    if (slash(cx - Math.cos(ang) * L, cy + Math.sin(ang) * L, cx + Math.cos(ang) * L, cy - Math.sin(ang) * L, pick[1])) { P.combo++; P.comboAt = S.real; INK.pop(); fireWave(dx, dz, P.flip++ % 2 ? 0.3 : -0.3); }
   }
 
   // ---- techniques: two are worn at a time, chosen in the arsenal
