@@ -11,6 +11,8 @@ const PAL = [
   0x3df2ff, 0xff2bd6, 0xff8a1e, 0xffc46b, // 23 cyan light, 24 magenta light, 25 orange light, 26 warm window
   0x0d0f18, 0x5dff8f, 0x1b1d26,           // 27 a tower at night, 28 green light, 29 asphalt
   0x14151e, 0x30354a, 0x1c1e2c, 0x0b0b10, // 30 the wanderer's coat, 31 his armour, 32 his hat, 33 what his fire is set in
+  0xb0914e, 0x241a17, 0xb3aa96, 0xa8231c, // 34 straw, 35 dark cloth, 36 bone white, 37 red cord
+  0x3b2a1f, 0x7d6534,                     // 38 dark wood, 39 straw in shadow
 ].map(lin);
 // uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
 const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };

@@ -109,82 +109,85 @@ const MODELS = (function () {
     ];
   }
 
-  // The wanderer. Not meant to be cut, but built the same way so that a lost fight leaves a heap. His trim glows in the colour of his blade.
-  // Layered shoulder guards, bracers and greaves over a dark coat; a scabbard at the left hip; a wide hat; and cloth that streams behind him:
-  // two tails of a scarf from the neck and two tails of the coat from the belt, each on bones of its own.
+  // The fire-bearer. Not meant to be cut, but built the same way so that a lost fight leaves a heap. A traveller through the night forest:
+  // a white fox mask with eyes of fire, a hood, a cape of straw in two tiers over dark cloth, arms and shins bound in pale wraps with red cord,
+  // a scabbard at the left hip and a paper lantern at the right, in which the fire he carries is kept. Cords from the back of the mask and
+  // strips of the straw skirt stream behind him, each on bones of its own; whatever on him glows does so in the colour of his blade.
   function hero() {
-    const o = (col, extra) => Object.assign({ col, inner: 16, glow: 0.3 }, extra || {});
+    const o = (col, extra) => Object.assign({ col, inner: 35, glow: 0.3 }, extra || {});
     const arm = (s) => {
-      const sx = s === 'L' ? 1 : -1, big = s === 'L' ? 1.18 : 1; // the left shoulder, the one turned to the enemy, carries the bigger guard
+      const sx = s === 'L' ? 1 : -1;
       return [
         { name: 'arm' + s, parent: 'chest', at: [sx * 0.21, 0.34, 0], pieces: [
-          limb(0.27, 0.062, 0.05, o(30, { sides: 6 })),
-          P(B(0.17 * big, 0.05, 0.2 * big, o(31, { taper: 0.8 })), sx * 0.02, 0.0, 0, 0, 0, -sx * 0.25),
-          P(B(0.165 * big, 0.045, 0.19 * big, o(31, { taper: 0.86 })), sx * 0.05, -0.058, 0, 0, 0, -sx * 0.42),
-          trim(P(B(0.17 * big, 0.012, 0.195 * big, o(33)), sx * 0.052, -0.068, 0, 0, 0, -sx * 0.42), 0.6),
-          P(B(0.15 * big, 0.04, 0.17 * big, o(31, { taper: 0.88 })), sx * 0.075, -0.115, 0, 0, 0, -sx * 0.58),
+          limb(0.27, 0.062, 0.05, o(35, { sides: 6 })),
+          P(B(0.17, 0.2, 0.2, o(39, { taper: 1.25 })), sx * 0.03, -0.17, 0, 0, 0, sx * 0.22), // the cape comes down over the shoulder
         ] },
         { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.27, 0], pieces: [
-          limb(0.25, 0.048, 0.04, o(16, { sides: 6 })),
-          P(L([[0.05, 0], [0.06, 0.15]], o(31, { sides: 6 })), 0, -0.23, 0),
-          trim(P(L([[0.063, 0], [0.063, 0.018]], o(33, { sides: 6 })), 0, -0.1, 0), 0.6),
-          P(B(0.07, 0.08, 0.07, o(16)), 0, -0.32, 0),
+          limb(0.25, 0.05, 0.042, o(36, { sides: 6 })),
+          P(L([[0.055, 0], [0.055, 0.03]], o(37, { sides: 6 })), 0, -0.07, 0),
+          trim(P(L([[0.053, 0], [0.053, 0.016]], o(33, { sides: 6 })), 0, -0.2, 0), 0.6),
+          P(B(0.07, 0.08, 0.07, o(14)), 0, -0.32, 0),
         ] },
       ];
     };
     const leg = (s) => {
       const sx = s === 'L' ? 1 : -1;
       return [
-        { name: 'thigh' + s, parent: 'hips', at: [sx * 0.09, -0.06, 0], pieces: [
-          limb(0.38, 0.1, 0.135, o(30, { sides: 6 })),
-          P(B(0.035, 0.26, 0.2, o(31, { taper: 0.85 })), sx * 0.135, -0.31, 0, 0, 0, sx * 0.1),
-          trim(P(B(0.04, 0.014, 0.205, o(33)), sx * 0.137, -0.315, 0, 0, 0, sx * 0.1), 0.5),
-        ] },
+        { name: 'thigh' + s, parent: 'hips', at: [sx * 0.09, -0.06, 0], pieces: [limb(0.38, 0.1, 0.14, o(35, { sides: 6 }))] },
         { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.38, 0], pieces: [
-          limb(0.3, 0.055, 0.045, o(16, { sides: 6 })),
-          P(B(0.088, 0.21, 0.04, o(31, { taper: 0.8 })), 0, -0.27, 0.042),
-          trim(P(B(0.092, 0.012, 0.045, o(33)), 0, -0.07, 0.042), 0.5),
-          P(B(0.09, 0.06, 0.22, o(16)), 0, -0.36, 0.04),
+          limb(0.3, 0.058, 0.046, o(36, { sides: 6 })),
+          P(L([[0.062, 0], [0.062, 0.028]], o(37, { sides: 6 })), 0, -0.06, 0),
+          P(L([[0.054, 0], [0.054, 0.028]], o(37, { sides: 6 })), 0, -0.24, 0),
+          P(B(0.1, 0.035, 0.24, o(38)), 0, -0.375, 0.04),
+          P(B(0.085, 0.04, 0.2, o(14)), 0, -0.345, 0.04),
         ] },
       ];
     };
-    // the scabbard: along -z and a little down from the left hip, with two brass rings and a lit mouth
     const saya = (piece) => P(piece, 0.19, 0.03, 0.15, -1.9, 0, 0);
-    // one length of cloth hanging from its bone, lit along its lower edge
-    const cloth = (w, len, taper, heat) => [P(B(w, len, 0.022, o(30, { taper: 1 / taper })), 0, -len, 0), trim(P(B(w * taper, 0.03, 0.026, o(33)), 0, -len, 0), heat)];
-    const band = (w, len, taper, heat) => [trim(P(B(w * taper, len, 0.024, o(33, { taper: 1 / taper })), 0, -len, 0), heat)];
+    // a strip of straw hanging from its bone, with an ember along its lower edge
+    const straw = (w, len) => [P(B(w, len, 0.03, o(34, { taper: 1 / 1.25 })), 0, -len, 0), trim(P(B(w * 1.25, 0.02, 0.034, o(33)), 0, -len, 0), 0.35)];
+    // a cord that burns along its whole length
+    const cord = (w, len, taper, heat) => [trim(P(B(w * taper, len, 0.024, o(33, { taper: 1 / taper })), 0, -len, 0), heat)];
+    const ear = (sx) => [P(L([[0.05, 0], [0, 0.15]], o(36, { sides: 4, sz: 0.55 })), sx * 0.075, 0.2, 0.03, 0, 0, -sx * 0.2), P(L([[0.028, 0], [0, 0.085]], o(37, { sides: 4, sz: 0.5 })), sx * 0.075, 0.215, 0.045, 0, 0, -sx * 0.2)];
     return [
       { name: 'hips', parent: null, at: [0, 0.8, 0], pieces: [
-        P(B(0.29, 0.17, 0.2, o(30)), 0, -0.09, 0),
-        trim(P(L([[0.165, 0], [0.165, 0.06]], o(33, { sides: 8, sz: 0.76 })), 0, 0.05, 0), 0.45),
-        P(B(0.1, 0.085, 0.05, o(18, { taper: 0.7 })), 0, 0.035, 0.115),
-        saya(B(0.042, 0.94, 0.058, o(16, { taper: 0.75 }))),
-        saya(P(B(0.054, 0.05, 0.07, o(18)), 0, 0.0, 0)),
-        saya(P(B(0.05, 0.03, 0.066, o(18)), 0, 0.3, 0)),
-        trim(saya(P(B(0.048, 0.016, 0.064, o(33)), 0, 0.055, 0)), 0.7),
+        P(B(0.29, 0.17, 0.2, o(35)), 0, -0.09, 0),
+        P(L([[0.175, 0], [0.185, 0.035], [0.175, 0.07]], o(37, { sides: 8, sz: 0.78 })), 0, 0.04, 0),          // a rope belt
+        P(B(0.09, 0.09, 0.06, o(37)), 0, 0.03, 0.125),
+        P(B(0.035, 0.2, 0.02, o(36, { taper: 0.7 })), -0.035, -0.17, 0.14), P(B(0.035, 0.16, 0.02, o(36, { taper: 0.7 })), 0.04, -0.13, 0.14), // paper streamers under the knot
+        saya(B(0.042, 0.94, 0.058, o(38, { taper: 0.75 }))),
+        saya(P(B(0.054, 0.05, 0.07, o(37)), 0, 0.0, 0)),
+        saya(P(B(0.05, 0.03, 0.066, o(37)), 0, 0.3, 0)),
+        // the lantern at the right hip: the fire he carries
+        P(B(0.012, 0.13, 0.012, o(38)), -0.21, -0.1, 0.06),
+        P(L([[0.05, 0], [0.062, 0.02]], o(38, { sides: 6 })), -0.21, -0.12, 0.06),
+        trim(P(L([[0.05, 0], [0.078, 0.05], [0.078, 0.13], [0.05, 0.18]], o(36, { sides: 6 })), -0.21, -0.3, 0.06), 1.1),
+        P(L([[0.052, 0], [0.04, 0.02]], o(38, { sides: 6 })), -0.21, -0.32, 0.06),
       ] },
       { name: 'chest', parent: 'hips', at: [0, 0.1, 0], pieces: [
-        L([[0.13, 0], [0.195, 0.27], [0.165, 0.38]], o(30, { sides: 6, sz: 0.7 })),
-        P(B(0.25, 0.2, 0.05, o(31, { taper: 0.74 })), 0, 0.13, 0.105),          // the breastplate
-        trim(P(B(0.03, 0.12, 0.02, o(33, { taper: 0.4 })), 0, 0.17, 0.135), 1.0), // and the ember set in it
-        P(B(0.22, 0.24, 0.05, o(31, { taper: 0.8 })), 0, 0.1, -0.135),
-        P(L([[0.1, 0], [0.085, 0.075]], o(16, { sides: 6 })), 0, 0.345, 0),
+        L([[0.13, 0], [0.19, 0.27], [0.16, 0.38]], o(35, { sides: 6, sz: 0.7 })),
+        P(L([[0.33, 0], [0.3, 0.06], [0.17, 0.24]], o(39, { sides: 9, sz: 0.8 })), 0, 0.1, -0.01),             // the cape of straw: a lower tier
+        P(L([[0.27, 0], [0.24, 0.05], [0.1, 0.2]], o(34, { sides: 9, sz: 0.82 })), 0, 0.24, -0.01),            // and an upper one
+        trim(P(B(0.05, 0.05, 0.02, o(33, { taper: 0.3 })), 0, 0.25, 0.2), 0.9),                                   // a clasp that burns
       ] },
       { name: 'head', parent: 'chest', at: [0, 0.39, 0], pieces: [
         L([[0.05, -0.03], [0.05, 0.05]], o(14, { sides: 6 })),
         L([[0.07, 0.02], [0.1, 0.08], [0.1, 0.17], [0.07, 0.23]], o(14, { sides: 6 })),
-        P(B(0.14, 0.085, 0.05, o(16, { taper: 1.15 })), 0, 0.02, 0.07),          // a mask over the lower face
-        trim(P(B(0.16, 0.024, 0.03, o(33)), 0, 0.122, 0.086), 1.3),               // the eyes: one slit of fire
-        P(L([[0.4, 0], [0.05, 0.18]], o(32, { sides: 11 })), 0, 0.165, 0),
-        trim(P(L([[0.408, 0], [0.408, 0.014]], o(33, { sides: 11 })), 0, 0.157, 0), 0.45),
-        P(L([[0.062, 0], [0.04, 0.05]], o(18, { sides: 6 })), 0, 0.335, 0),
+        P(L([[0.118, 0], [0.128, 0.1], [0.1, 0.24]], o(35, { sides: 7 })), 0, 0.01, -0.03),                      // the hood
+        P(B(0.175, 0.2, 0.035, o(36, { taper: 0.82 })), 0, 0.04, 0.09),                                           // the mask: a fox's face
+        P(B(0.085, 0.13, 0.075, o(36, { taper: 0.45 })), 0, 0.055, 0.1, Math.PI / 2, 0, 0),                       // its muzzle
+        P(B(0.03, 0.03, 0.02, o(38)), 0, 0.04, 0.235),
+        trim(P(B(0.052, 0.02, 0.02, o(33)), 0.047, 0.15, 0.108, 0, 0, 0.3), 1.5), trim(P(B(0.052, 0.02, 0.02, o(33)), -0.047, 0.15, 0.108, 0, 0, -0.3), 1.5), // eyes of fire
+        P(B(0.016, 0.07, 0.012, o(37)), 0.07, 0.06, 0.111, 0, 0, -0.35), P(B(0.016, 0.07, 0.012, o(37)), -0.07, 0.06, 0.111, 0, 0, 0.35),               // red marks on the cheeks
+        P(B(0.02, 0.05, 0.012, o(37)), 0, 0.185, 0.106),
+        ...ear(1), ...ear(-1),
       ] },
-      { name: 'scarf', parent: 'chest', at: [-0.045, 0.36, -0.1], pieces: band(0.13, 0.34, 0.9, 0.75) },
-      { name: 'scarf2', parent: 'scarf', at: [0, -0.34, 0], pieces: band(0.117, 0.4, 0.5, 0.75) },
-      { name: 'band', parent: 'chest', at: [0.05, 0.36, -0.1], pieces: band(0.1, 0.27, 0.9, 0.6) },
-      { name: 'band2', parent: 'band', at: [0, -0.27, 0], pieces: band(0.09, 0.3, 0.5, 0.6) },
-      { name: 'tailL', parent: 'hips', at: [0.085, -0.02, -0.105], pieces: cloth(0.15, 0.52, 1.3, 0.5) },
-      { name: 'tailR', parent: 'hips', at: [-0.085, -0.02, -0.105], pieces: cloth(0.15, 0.52, 1.3, 0.5) },
+      { name: 'scarf', parent: 'chest', at: [-0.05, 0.5, -0.13], pieces: cord(0.1, 0.34, 0.9, 0.75) },
+      { name: 'scarf2', parent: 'scarf', at: [0, -0.34, 0], pieces: cord(0.09, 0.4, 0.5, 0.75) },
+      { name: 'band', parent: 'chest', at: [0.05, 0.5, -0.13], pieces: cord(0.08, 0.27, 0.9, 0.6) },
+      { name: 'band2', parent: 'band', at: [0, -0.27, 0], pieces: cord(0.07, 0.3, 0.5, 0.6) },
+      { name: 'tailL', parent: 'hips', at: [0.085, -0.02, -0.105], pieces: straw(0.15, 0.5) },
+      { name: 'tailR', parent: 'hips', at: [-0.085, -0.02, -0.105], pieces: straw(0.15, 0.5) },
       ...arm('L'), ...arm('R'), ...leg('L'), ...leg('R'),
     ];
   }
