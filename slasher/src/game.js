@@ -227,7 +227,7 @@
     if (P.dead || !P.rig || !P.rig.root.visible || S.mode === 'dead') return;
     const b = P.rig.bones, hot = P.heat + (P.over ? 0.6 : 0);
     const r = dt * (9 + 16 * hot);
-    for (const [bone, len] of [[b.scarf2, 0.4], [b.band2, 0.3]]) {
+    for (const [bone, len] of [[b.scarf2, 0.44], [b.band2, 0.32], [b.cape2, 0.5]]) {
       if (rnd() >= r) continue;
       v1.set(0, -len, 0).applyMatrix4(bone.matrixWorld);
       fire(v1.x, v1.y - 0.04, v1.z, 0.2 + 0.2 * Math.min(1, hot) + rnd() * 0.12, 0.32, { vy: 0.9, gain: 0.85 });
@@ -244,7 +244,6 @@
     P.rig = MODELS.makeRig(MODELS.hero());
     scene.add(P.rig.root);
     Object.assign(P, { x: 0, z: 0, yaw: Math.PI, hp: P.maxHp, focus: 1, speed: 0, dash: 0, dashCd: 0, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, queue: null, dead: false, act: null, stance: 0, vx: 0, vz: 0, y: 0, heat: 0, yawS: Math.PI, snap: true });
-    P.rig.root.scale.setScalar(1.1);
     katana.visible = true;
   }
   // ---- what the blade learns: each level offers three of these
@@ -328,6 +327,9 @@
     b.band2.rotation.set(fly * 0.3 + Math.sin(t * 9.4 + 0.4) * (0.1 + 0.2 * flow), 0, 0);
     b.tailL.rotation.set(fly * 0.66 + Math.sin(t * 6.3) * 0.07 * (0.3 + flow), 0, -0.05 - fly * 0.12);
     b.tailR.rotation.set(fly * 0.6 + Math.sin(t * 6.9 + 1.7) * 0.07 * (0.3 + flow), 0, 0.05 + fly * 0.12);
+    // the cape: it hangs a little off the back at rest, lifts as he moves, and its torn edge lags and snaps behind it
+    b.cape.rotation.set(0.1 + fly * 0.78 + Math.sin(t * 4.6 + 0.7) * (0.04 + 0.07 * flow), 0, Math.sin(t * 3.1) * 0.05 * (0.3 + flow));
+    b.cape2.rotation.set(fly * 0.22 + Math.sin(t * 7.7 + 2.0) * (0.07 + 0.2 * flow), 0, Math.sin(t * 5.3 + 1.0) * 0.08 * flow);
     P.rig.root.updateMatrixWorld(true);
   }
   function carry(b, run, dt) { // carried low and behind while running, low and ahead while standing
@@ -422,14 +424,18 @@
     let turn = P.yaw - P.yawS; turn = Math.atan2(Math.sin(turn), Math.cos(turn)); P.yawS += turn * (P.snap ? 1 : 1 - Math.exp(-dt * 30)); // he turns fast, but he turns
     P.rig.root.position.set(P.x, P.y, P.z);
     P.rig.root.rotation.y = P.yawS;
-    const dash = P.dash > 0 || P.lunge ? 1 : 0;
-    b.hips.position.y = b.hips.rest[1] + Math.abs(s) * 0.035 * run - 0.05 * run - dash * 0.12;
-    b.hips.rotation.x = 0.16 * run + dash * 0.5;
-    b.chest.rotation.set(0.1 * run, s * 0.12 * run, 0);
-    b.head.rotation.x = -0.14 * run - dash * 0.35;
-    b.thighL.rotation.x = -s * 0.85 * run; b.shinL.rotation.x = Math.max(0, c) * 1.1 * run + 0.06;
-    b.thighR.rotation.x = s * 0.85 * run; b.shinR.rotation.x = Math.max(0, -c) * 1.1 * run + 0.06;
-    b.armL.rotation.set(s * 0.7 * run, 0, 0.1); b.foreL.rotation.set(-0.3 - 0.5 * run, 0, 0);
+    const dash = P.dash > 0 || P.lunge ? 1 : 0, idle = 1 - run, breath = Math.sin(S.real * 2.2);
+    // At rest he stands side-on with his knees soft, weight on the back foot, the off hand resting at the scabbard, and he breathes.
+    // Running, he goes low and forward with long strides and the off arm thrown back; in a dash he is almost flat to the ground.
+    P.rig.root.rotation.z = lerp(P.rig.root.rotation.z || 0, clamp(-turn * 0.9, -0.3, 0.3) * run, 1 - Math.exp(-dt * 10)); // he leans into a turn
+    b.hips.position.y = b.hips.rest[1] + Math.abs(s) * 0.05 * run - 0.09 * run - dash * 0.2 - 0.05 * idle + breath * 0.008 * idle;
+    b.hips.rotation.set(0.32 * run + dash * 0.7, 0, 0);
+    b.chest.rotation.set(0.16 * run + dash * 0.25 + breath * 0.025 * idle, s * 0.22 * run + 0.42 * idle, 0);
+    b.head.rotation.set(-0.36 * run - dash * 0.6 - breath * 0.015 * idle, -0.36 * idle, 0);
+    b.thighL.rotation.set(-s * 1.05 * run - 0.34 * idle, 0, 0.1 * idle); b.shinL.rotation.x = Math.max(0, c) * 1.5 * run + 0.08 + 0.4 * idle;
+    b.thighR.rotation.set(s * 1.05 * run + 0.26 * idle, 0, -0.1 * idle); b.shinR.rotation.x = Math.max(0, -c) * 1.5 * run + 0.08 + 0.22 * idle;
+    if (dash) { b.thighL.rotation.x = -1.2; b.shinL.rotation.x = 1.5; b.thighR.rotation.x = 0.9; b.shinR.rotation.x = 0.25; }
+    b.armL.rotation.set((0.95 + s * 0.2) * run + dash * 0.4 + 0.12 * idle, 0, 0.14 + 0.22 * idle); b.foreL.rotation.set(-0.22 - 0.2 * run - 1.0 * idle, 0, 0);
     b.scarf.rotation.x = clamp(P.speed * 0.17 + dash * 0.8, 0, 1.35) + Math.sin(S.real * 9) * 0.1 * (0.2 + run);
     // a cut is made from a deep lunge: front knee bent, back leg stretched out, body low and leaning in. It eases back up afterwards.
     if (!act && !(sw && sw.t < sw.T)) P.stance = Math.max(0, P.stance - dt * (run > 0.3 ? 10 : sw ? 1.2 : 3.4));

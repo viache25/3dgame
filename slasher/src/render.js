@@ -13,6 +13,10 @@ const PAL = [
   0x14151e, 0x30354a, 0x1c1e2c, 0x0b0b10, // 30 the wanderer's coat, 31 his armour, 32 his hat, 33 what his fire is set in
   0xb0914e, 0x241a17, 0xb3aa96, 0xa8231c, // 34 straw, 35 dark cloth, 36 bone white, 37 red cord
   0x3b2a1f, 0x7d6534,                     // 38 dark wood, 39 straw in shadow
+  0x16301f, 0x24482c, 0x33261d, 0x59635a, // 40 leaves in the dark, 41 leaves, 42 bark, 43 mossy stone
+  0x5d8a3a, 0x9fb86a, 0x6e4c2f, 0xb08a58, // 44 bamboo, 45 inside of bamboo, 46 wood, 47 inside of wood
+  0xffcf8a, 0xb5271b, 0x12111c, 0x74140f, // 48 lit paper, 49 shrine red, 50 ink cloth, 51 dark red lacquer
+  0xd9d3c6, 0x2c2a3a,                     // 52 the white of the mask, 53 cloth catching light
 ].map(lin);
 // uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
 const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };
@@ -58,6 +62,10 @@ const PART_MAT = (function () {
           vec3 hot = mix(ember ? vec3(1.0, 0.1, 0.01) : uHotB, ember ? vec3(1.0, 0.45, 0.1) : uHotA, exp(-age * 1.4));
           totalEmissiveRadiance += hot * vCut.y * (2.6 * exp(-age * 0.55) + 0.5 * exp(-age * 0.1));
         }
+      }`).replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      { // moonlight along every edge that turns away from the eye, so a dark figure still has an outline
+        float rimK = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+        totalEmissiveRadiance += vec3(0.34, 0.5, 0.8) * rimK * rimK * rimK * 0.5;
       }`);
   };
   return m;

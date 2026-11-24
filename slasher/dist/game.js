@@ -406,6 +406,10 @@ const PAL = [
   0x14151e, 0x30354a, 0x1c1e2c, 0x0b0b10, // 30 the wanderer's coat, 31 his armour, 32 his hat, 33 what his fire is set in
   0xb0914e, 0x241a17, 0xb3aa96, 0xa8231c, // 34 straw, 35 dark cloth, 36 bone white, 37 red cord
   0x3b2a1f, 0x7d6534,                     // 38 dark wood, 39 straw in shadow
+  0x16301f, 0x24482c, 0x33261d, 0x59635a, // 40 leaves in the dark, 41 leaves, 42 bark, 43 mossy stone
+  0x5d8a3a, 0x9fb86a, 0x6e4c2f, 0xb08a58, // 44 bamboo, 45 inside of bamboo, 46 wood, 47 inside of wood
+  0xffcf8a, 0xb5271b, 0x12111c, 0x74140f, // 48 lit paper, 49 shrine red, 50 ink cloth, 51 dark red lacquer
+  0xd9d3c6, 0x2c2a3a,                     // 52 the white of the mask, 53 cloth catching light
 ].map(lin);
 // uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
 const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };
@@ -451,6 +455,10 @@ const PART_MAT = (function () {
           vec3 hot = mix(ember ? vec3(1.0, 0.1, 0.01) : uHotB, ember ? vec3(1.0, 0.45, 0.1) : uHotA, exp(-age * 1.4));
           totalEmissiveRadiance += hot * vCut.y * (2.6 * exp(-age * 0.55) + 0.5 * exp(-age * 0.1));
         }
+      }`).replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      { // moonlight along every edge that turns away from the eye, so a dark figure still has an outline
+        float rimK = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+        totalEmissiveRadiance += vec3(0.34, 0.5, 0.8) * rimK * rimK * rimK * 0.5;
       }`);
   };
   return m;
@@ -987,85 +995,103 @@ const MODELS = (function () {
     ];
   }
 
-  // The fire-bearer. Not meant to be cut, but built the same way so that a lost fight leaves a heap. A traveller through the night forest:
-  // a white fox mask with eyes of fire, a hood, a cape of straw in two tiers over dark cloth, arms and shins bound in pale wraps with red cord,
-  // a scabbard at the left hip and a paper lantern at the right, in which the fire he carries is kept. Cords from the back of the mask and
-  // strips of the straw skirt stream behind him, each on bones of its own; whatever on him glows does so in the colour of his blade.
+  // The fire-bearer. Not meant to be cut, but built the same way so that a lost fight leaves a heap. A tall, lean figure in ink-dark cloth:
+  // a white fox mask with eyes of fire under a hood, a long torn cape, wide trousers bound at the shin, one great layered shoulder guard of
+  // dark red lacquer, bracers and greaves to match, a rope belt, a scabbard at the left hip and a paper lantern at the right in which his fire
+  // is kept. Everything that hangs from him (cape, cords, the panels of his coat) is on bones of its own and streams behind him.
   function hero() {
-    const o = (col, extra) => Object.assign({ col, inner: 35, glow: 0.3 }, extra || {});
+    const o = (col, extra) => Object.assign({ col, inner: 50, glow: 0.3 }, extra || {});
+    const ember = (piece, heat) => trim(piece, heat);
     const arm = (s) => {
-      const sx = s === 'L' ? 1 : -1;
+      const sx = s === 'L' ? 1 : -1, L0 = s === 'L';
+      const guard = L0 ? [ // the great shoulder guard: three plates, each lower and wider than the last, with fire along their edges
+        P(B(0.2, 0.05, 0.24, o(51, { taper: 0.8 })), sx * 0.03, 0.03, 0, 0, 0, -sx * 0.22),
+        P(B(0.22, 0.045, 0.26, o(51, { taper: 0.88 })), sx * 0.07, -0.035, 0, 0, 0, -sx * 0.42),
+        ember(P(B(0.225, 0.012, 0.265, o(33)), sx * 0.074, -0.046, 0, 0, 0, -sx * 0.42), 0.7),
+        P(B(0.21, 0.045, 0.25, o(51, { taper: 0.9 })), sx * 0.105, -0.105, 0, 0, 0, -sx * 0.62),
+        ember(P(B(0.215, 0.012, 0.255, o(33)), sx * 0.11, -0.116, 0, 0, 0, -sx * 0.62), 0.7),
+      ] : [P(B(0.15, 0.045, 0.19, o(50, { taper: 0.8 })), sx * 0.02, 0.02, 0, 0, 0, -sx * 0.25)];
       return [
-        { name: 'arm' + s, parent: 'chest', at: [sx * 0.21, 0.34, 0], pieces: [
-          limb(0.27, 0.062, 0.05, o(35, { sides: 6 })),
-          P(B(0.17, 0.2, 0.2, o(39, { taper: 1.25 })), sx * 0.03, -0.17, 0, 0, 0, sx * 0.22), // the cape comes down over the shoulder
-        ] },
-        { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.27, 0], pieces: [
-          limb(0.25, 0.05, 0.042, o(36, { sides: 6 })),
-          P(L([[0.055, 0], [0.055, 0.03]], o(37, { sides: 6 })), 0, -0.07, 0),
-          trim(P(L([[0.053, 0], [0.053, 0.016]], o(33, { sides: 6 })), 0, -0.2, 0), 0.6),
-          P(B(0.07, 0.08, 0.07, o(14)), 0, -0.32, 0),
+        { name: 'arm' + s, parent: 'chest', at: [sx * 0.2, 0.36, 0], pieces: [
+          limb(0.3, 0.06, 0.052, o(50, { sides: 8 })),
+          P(B(0.085, 0.27, 0.19, o(53, { taper: 1.35 })), 0, -0.3, -0.03),   // the sleeve, hanging wide
+        ].concat(guard) },
+        { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.3, 0], pieces: [
+          limb(0.28, 0.046, 0.038, o(36, { sides: 8 })),
+          P(L([[0.05, 0], [0.058, 0.16]], o(51, { sides: 8 })), 0, -0.24, 0),
+          ember(P(L([[0.061, 0], [0.061, 0.014]], o(33, { sides: 8 })), 0, -0.085, 0), 0.7),
+          P(L([[0.05, 0], [0.05, 0.02]], o(37, { sides: 8 })), 0, -0.26, 0),
+          P(B(0.062, 0.085, 0.07, o(50)), 0, -0.36, 0),
         ] },
       ];
     };
     const leg = (s) => {
       const sx = s === 'L' ? 1 : -1;
       return [
-        { name: 'thigh' + s, parent: 'hips', at: [sx * 0.09, -0.06, 0], pieces: [limb(0.38, 0.1, 0.14, o(35, { sides: 6 }))] },
-        { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.38, 0], pieces: [
-          limb(0.3, 0.058, 0.046, o(36, { sides: 6 })),
-          P(L([[0.062, 0], [0.062, 0.028]], o(37, { sides: 6 })), 0, -0.06, 0),
-          P(L([[0.054, 0], [0.054, 0.028]], o(37, { sides: 6 })), 0, -0.24, 0),
-          P(B(0.1, 0.035, 0.24, o(38)), 0, -0.375, 0.04),
-          P(B(0.085, 0.04, 0.2, o(14)), 0, -0.345, 0.04),
+        { name: 'thigh' + s, parent: 'hips', at: [sx * 0.085, -0.07, 0], pieces: [limb(0.44, 0.105, 0.155, o(50, { sides: 8 }))] },
+        { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.44, 0], pieces: [
+          limb(0.4, 0.062, 0.044, o(36, { sides: 8 })),
+          P(B(0.085, 0.26, 0.04, o(51, { taper: 0.75 })), 0, -0.31, 0.045),
+          ember(P(B(0.09, 0.012, 0.046, o(33)), 0, -0.05, 0.045), 0.6),
+          P(L([[0.056, 0], [0.056, 0.022]], o(37, { sides: 8 })), 0, -0.34, 0),
+          P(B(0.085, 0.07, 0.25, o(50, { taper: 0.8 })), 0, -0.47, 0.05),
         ] },
       ];
     };
-    const saya = (piece) => P(piece, 0.19, 0.03, 0.15, -1.9, 0, 0);
-    // a strip of straw hanging from its bone, with an ember along its lower edge
-    const straw = (w, len) => [P(B(w, len, 0.03, o(34, { taper: 1 / 1.25 })), 0, -len, 0), trim(P(B(w * 1.25, 0.02, 0.034, o(33)), 0, -len, 0), 0.35)];
-    // a cord that burns along its whole length
-    const cord = (w, len, taper, heat) => [trim(P(B(w * taper, len, 0.024, o(33, { taper: 1 / taper })), 0, -len, 0), heat)];
-    const ear = (sx) => [P(L([[0.05, 0], [0, 0.15]], o(36, { sides: 4, sz: 0.55 })), sx * 0.075, 0.2, 0.03, 0, 0, -sx * 0.2), P(L([[0.028, 0], [0, 0.085]], o(37, { sides: 4, sz: 0.5 })), sx * 0.075, 0.215, 0.045, 0, 0, -sx * 0.2)];
+    const saya = (piece) => P(piece, 0.18, 0.02, 0.16, -1.9, 0, 0);
+    // a panel of cloth hanging from its bone, with an ember along its lower edge
+    const cloth = (w, len, taper, col, heat) => [P(B(w, len, 0.022, o(col, { taper: 1 / taper })), 0, -len, 0), ember(P(B(w * taper, 0.022, 0.026, o(33)), 0, -len, 0), heat)];
+    const cord = (w, len, taper, heat) => [ember(P(B(w * taper, len, 0.02, o(33, { taper: 1 / taper })), 0, -len, 0), heat)];
+    const ear = (sx) => [
+      P(L([[0.055, 0], [0, 0.2]], o(52, { sides: 4, sz: 0.5 })), sx * 0.078, 0.2, 0.035, 0.12, 0, -sx * 0.24),
+      P(L([[0.03, 0], [0, 0.12]], o(49, { sides: 4, sz: 0.5 })), sx * 0.078, 0.215, 0.052, 0.12, 0, -sx * 0.24),
+    ];
     return [
-      { name: 'hips', parent: null, at: [0, 0.8, 0], pieces: [
-        P(B(0.29, 0.17, 0.2, o(35)), 0, -0.09, 0),
-        P(L([[0.175, 0], [0.185, 0.035], [0.175, 0.07]], o(37, { sides: 8, sz: 0.78 })), 0, 0.04, 0),          // a rope belt
-        P(B(0.09, 0.09, 0.06, o(37)), 0, 0.03, 0.125),
-        P(B(0.035, 0.2, 0.02, o(36, { taper: 0.7 })), -0.035, -0.17, 0.14), P(B(0.035, 0.16, 0.02, o(36, { taper: 0.7 })), 0.04, -0.13, 0.14), // paper streamers under the knot
-        saya(B(0.042, 0.94, 0.058, o(38, { taper: 0.75 }))),
-        saya(P(B(0.054, 0.05, 0.07, o(37)), 0, 0.0, 0)),
-        saya(P(B(0.05, 0.03, 0.066, o(37)), 0, 0.3, 0)),
-        // the lantern at the right hip: the fire he carries
-        P(B(0.012, 0.13, 0.012, o(38)), -0.21, -0.1, 0.06),
-        P(L([[0.05, 0], [0.062, 0.02]], o(38, { sides: 6 })), -0.21, -0.12, 0.06),
-        trim(P(L([[0.05, 0], [0.078, 0.05], [0.078, 0.13], [0.05, 0.18]], o(36, { sides: 6 })), -0.21, -0.3, 0.06), 1.1),
-        P(L([[0.052, 0], [0.04, 0.02]], o(38, { sides: 6 })), -0.21, -0.32, 0.06),
+      { name: 'hips', parent: null, at: [0, 0.92, 0], pieces: [
+        P(L([[0.14, 0], [0.165, 0.1], [0.15, 0.2]], o(50, { sides: 8, sz: 0.72 })), 0, -0.12, 0),
+        P(L([[0.168, 0], [0.18, 0.03], [0.168, 0.06]], o(37, { sides: 10, sz: 0.74 })), 0, 0.03, 0),
+        P(B(0.085, 0.085, 0.06, o(37, { taper: 0.75 })), 0.02, 0.02, 0.12),
+        P(B(0.032, 0.22, 0.018, o(52, { taper: 0.6 })), -0.02, -0.2, 0.135), P(B(0.032, 0.17, 0.018, o(52, { taper: 0.6 })), 0.045, -0.15, 0.135),
+        saya(B(0.04, 0.98, 0.056, o(38, { taper: 0.72 }))),
+        saya(P(B(0.052, 0.05, 0.068, o(51)), 0, 0.0, 0)),
+        saya(P(B(0.048, 0.03, 0.064, o(37)), 0, 0.3, 0)),
+        saya(P(B(0.04, 0.04, 0.056, o(51)), 0, 0.9, 0)),
+        // the lantern at the right hip
+        P(B(0.012, 0.14, 0.012, o(38)), -0.2, -0.12, 0.07),
+        P(L([[0.05, 0], [0.064, 0.022]], o(38, { sides: 8 })), -0.2, -0.14, 0.07),
+        ember(P(L([[0.05, 0], [0.08, 0.05], [0.08, 0.14], [0.05, 0.19]], o(52, { sides: 8 })), -0.2, -0.33, 0.07), 1.2),
+        P(L([[0.054, 0], [0.04, 0.022]], o(38, { sides: 8 })), -0.2, -0.352, 0.07),
       ] },
       { name: 'chest', parent: 'hips', at: [0, 0.1, 0], pieces: [
-        L([[0.13, 0], [0.19, 0.27], [0.16, 0.38]], o(35, { sides: 6, sz: 0.7 })),
-        P(L([[0.33, 0], [0.3, 0.06], [0.17, 0.24]], o(39, { sides: 9, sz: 0.8 })), 0, 0.1, -0.01),             // the cape of straw: a lower tier
-        P(L([[0.27, 0], [0.24, 0.05], [0.1, 0.2]], o(34, { sides: 9, sz: 0.82 })), 0, 0.24, -0.01),            // and an upper one
-        trim(P(B(0.05, 0.05, 0.02, o(33, { taper: 0.3 })), 0, 0.25, 0.2), 0.9),                                   // a clasp that burns
+        L([[0.122, 0], [0.19, 0.3], [0.14, 0.43]], o(50, { sides: 8, sz: 0.66 })),
+        P(B(0.05, 0.36, 0.03, o(52)), 0.045, 0.06, 0.1, -0.12, 0, 0.3), P(B(0.05, 0.36, 0.03, o(52)), -0.045, 0.06, 0.1, -0.12, 0, -0.3), // the collar, crossed
+        P(B(0.2, 0.15, 0.04, o(51, { taper: 0.8 })), 0, 0.04, 0.085),
+        ember(P(B(0.045, 0.045, 0.02, o(33, { taper: 0.2 })), 0, 0.28, 0.135), 1.0),
+        P(L([[0.1, 0], [0.085, 0.07]], o(50, { sides: 8 })), 0, 0.385, 0),
       ] },
-      { name: 'head', parent: 'chest', at: [0, 0.39, 0], pieces: [
-        L([[0.05, -0.03], [0.05, 0.05]], o(14, { sides: 6 })),
-        L([[0.07, 0.02], [0.1, 0.08], [0.1, 0.17], [0.07, 0.23]], o(14, { sides: 6 })),
-        P(L([[0.118, 0], [0.128, 0.1], [0.1, 0.24]], o(35, { sides: 7 })), 0, 0.01, -0.03),                      // the hood
-        P(B(0.175, 0.2, 0.035, o(36, { taper: 0.82 })), 0, 0.04, 0.09),                                           // the mask: a fox's face
-        P(B(0.085, 0.13, 0.075, o(36, { taper: 0.45 })), 0, 0.055, 0.1, Math.PI / 2, 0, 0),                       // its muzzle
-        P(B(0.03, 0.03, 0.02, o(38)), 0, 0.04, 0.235),
-        trim(P(B(0.052, 0.02, 0.02, o(33)), 0.047, 0.15, 0.108, 0, 0, 0.3), 1.5), trim(P(B(0.052, 0.02, 0.02, o(33)), -0.047, 0.15, 0.108, 0, 0, -0.3), 1.5), // eyes of fire
-        P(B(0.016, 0.07, 0.012, o(37)), 0.07, 0.06, 0.111, 0, 0, -0.35), P(B(0.016, 0.07, 0.012, o(37)), -0.07, 0.06, 0.111, 0, 0, 0.35),               // red marks on the cheeks
-        P(B(0.02, 0.05, 0.012, o(37)), 0, 0.185, 0.106),
+      { name: 'head', parent: 'chest', at: [0, 0.42, 0], pieces: [
+        L([[0.048, -0.03], [0.048, 0.05]], o(14, { sides: 8 })),
+        L([[0.066, 0.02], [0.096, 0.08], [0.096, 0.17], [0.066, 0.23]], o(14, { sides: 8 })),
+        P(L([[0.112, 0], [0.124, 0.11], [0.104, 0.2], [0.05, 0.27]], o(50, { sides: 9 })), 0, 0.0, -0.028),   // the hood
+        P(L([[0.14, 0], [0.11, 0.07]], o(50, { sides: 9, sz: 0.8 })), 0, -0.03, -0.035),                        // and its fall onto the shoulders
+        P(B(0.17, 0.2, 0.034, o(52, { taper: 0.78 })), 0, 0.04, 0.088),                                           // the mask: a fox's face
+        P(B(0.08, 0.17, 0.07, o(52, { taper: 0.35 })), 0, 0.05, 0.1, Math.PI / 2, 0, 0),                          // a long muzzle
+        P(B(0.026, 0.026, 0.02, o(38)), 0, 0.037, 0.27),
+        ember(P(B(0.058, 0.02, 0.02, o(33)), 0.048, 0.152, 0.106, 0, 0, 0.34), 1.7), ember(P(B(0.058, 0.02, 0.02, o(33)), -0.048, 0.152, 0.106, 0, 0, -0.34), 1.7),
+        P(B(0.015, 0.075, 0.012, o(49)), 0.068, 0.055, 0.109, 0, 0, -0.38), P(B(0.015, 0.075, 0.012, o(49)), -0.068, 0.055, 0.109, 0, 0, 0.38),
+        P(B(0.02, 0.055, 0.012, o(49)), 0, 0.185, 0.104),
         ...ear(1), ...ear(-1),
       ] },
-      { name: 'scarf', parent: 'chest', at: [-0.05, 0.5, -0.13], pieces: cord(0.1, 0.34, 0.9, 0.75) },
-      { name: 'scarf2', parent: 'scarf', at: [0, -0.34, 0], pieces: cord(0.09, 0.4, 0.5, 0.75) },
-      { name: 'band', parent: 'chest', at: [0.05, 0.5, -0.13], pieces: cord(0.08, 0.27, 0.9, 0.6) },
-      { name: 'band2', parent: 'band', at: [0, -0.27, 0], pieces: cord(0.07, 0.3, 0.5, 0.6) },
-      { name: 'tailL', parent: 'hips', at: [0.085, -0.02, -0.105], pieces: straw(0.15, 0.5) },
-      { name: 'tailR', parent: 'hips', at: [-0.085, -0.02, -0.105], pieces: straw(0.15, 0.5) },
+      { name: 'scarf', parent: 'chest', at: [-0.05, 0.56, -0.14], pieces: cord(0.085, 0.36, 0.9, 0.8) },
+      { name: 'scarf2', parent: 'scarf', at: [0, -0.36, 0], pieces: cord(0.076, 0.44, 0.4, 0.8) },
+      { name: 'band', parent: 'chest', at: [0.05, 0.56, -0.14], pieces: cord(0.07, 0.28, 0.9, 0.65) },
+      { name: 'band2', parent: 'band', at: [0, -0.28, 0], pieces: cord(0.063, 0.32, 0.4, 0.65) },
+      { name: 'cape', parent: 'chest', at: [0, 0.4, -0.115], pieces: [P(B(0.36, 0.5, 0.024, o(50, { taper: 1 / 1.25 })), 0, -0.5, 0), P(B(0.3, 0.46, 0.016, o(51, { taper: 1 / 1.25 })), 0, -0.48, 0.016)] },
+      { name: 'cape2', parent: 'cape', at: [0, -0.5, 0], pieces: [ // the torn lower edge: three tongues of unequal length, each burning at its tip
+        ...[[-0.15, 0.13, 0.52], [0, 0.15, 0.4], [0.15, 0.13, 0.58]].flatMap(([x, w, len]) => [P(B(w, len, 0.022, o(50, { taper: 2.2 })), x, -len, 0), ember(P(B(w * 0.5, 0.05, 0.026, o(33, { taper: 2 })), x, -len, 0), 0.75)]),
+      ] },
+      { name: 'tailL', parent: 'hips', at: [0.1, -0.02, -0.1], pieces: cloth(0.15, 0.5, 1.25, 53, 0.45) },
+      { name: 'tailR', parent: 'hips', at: [-0.1, -0.02, -0.1], pieces: cloth(0.15, 0.5, 1.25, 53, 0.45) },
       ...arm('L'), ...arm('R'), ...leg('L'), ...leg('R'),
     ];
   }
@@ -1083,42 +1109,54 @@ const MODELS = (function () {
     return g;
   }
 
-  // Things standing on the plaza that exist to be cut. c: which light they carry (a colour of the palette).
+  // Things standing in the clearing that exist to be cut. The old names are kept (pillar, drum, tube, board, crate) because the game places
+  // them by those; what they are now: a tree, a stone lantern, a stalk of bamboo, a lantern on a post, a wooden chest.
   const props = {
-    pillar(h, c) { // a concrete column with two bands of light
-      const o = (col) => ({ col, inner: 5, glow: 0.75, sides: 6 }), out = [L([[0.5, 0], [0.5, 0.22]], o(4))];
-      let y = 0.2;
-      const drums = Math.max(2, Math.round(h / 0.9));
-      for (let i = 0; i < drums; i++) { const dh = h / drums; out.push(P(L([[0.37, 0], [0.36, dh + 0.02]], o(4)), 0, y, 0, 0, i * 0.5, 0)); y += dh; }
-      out.push(P(L([[0.36, 0], [0.5, 0.12], [0.5, 0.26]], o(4)), 0, y, 0));
-      out.push(neon(P(L([[0.39, 0], [0.39, 0.07]], { col: c, inner: 5, glow: 0.75, sides: 6 }), 0, 0.5, 0), 1), neon(P(L([[0.385, 0], [0.385, 0.07]], { col: c, inner: 5, glow: 0.75, sides: 6 }), 0, y - 0.35, 0), 1));
+    pillar(h) { // a young cedar: roots, a trunk bound with a rope, and its crown in three tiers
+      const bark = (extra) => Object.assign({ col: 42, inner: 47, glow: 0.7, sides: 7 }, extra || {}), leaf = (col) => ({ col, inner: 41, glow: 0.5, sides: 7 });
+      const out = [L([[0.56, 0], [0.4, 0.16], [0.36, 0.3]], bark())];
+      let y = 0.28;
+      const n = Math.max(2, Math.round(h / 0.9));
+      for (let i = 0; i < n; i++) { const dh = h / n, r0 = 0.36 - 0.1 * i / n, r1 = 0.36 - 0.1 * (i + 1) / n; out.push(P(L([[r0, 0], [r1, dh + 0.02]], bark()), 0, y, 0, 0, i * 0.5, 0)); y += dh; }
+      out.push(P(L([[0.39, 0], [0.4, 0.035], [0.39, 0.07]], { col: 37, inner: 47, glow: 0.7, sides: 7 }), 0, 1.0, 0));
+      out.push(P(B(0.05, 0.2, 0.015, { col: 52, inner: 47, glow: 0.7, taper: 0.6 }), 0.1, 0.78, 0.39), P(B(0.05, 0.16, 0.015, { col: 52, inner: 47, glow: 0.7, taper: 0.6 }), -0.14, 0.82, 0.37));
+      out.push(P(L([[1.5, 0], [1.25, 0.25], [0.3, 1.5]], leaf(40)), 0, y - 0.25, 0), P(L([[1.2, 0], [1.0, 0.2], [0.2, 1.35]], leaf(41)), 0, y + 0.75, 0, 0, 0.4, 0), P(L([[0.85, 0], [0.7, 0.15], [0, 1.4]], leaf(40)), 0, y + 1.7, 0, 0, 0.8, 0));
       return out;
     },
-    drum(s, c) { // a steel drum with a hazard band and a lit cap
-      const o = (col) => ({ sides: 9, col, inner: 10, glow: 0.85 });
+    drum(s) { // a stone lantern with a light in it
+      const st = (extra) => Object.assign({ sides: 6, col: 43, inner: 5, glow: 0.8 }, extra || {});
       return [
-        P(L([[0.3, 0], [0.34, 0.08], [0.34, 0.76], [0.3, 0.84]], o(8)), 0, 0, 0, 0, 0, 0, s),
-        P(L([[0.347, 0], [0.347, 0.12]], o(9)), 0, 0.36 * s, 0, 0, 0, 0, s),
-        neon(P(L([[0.16, 0], [0.16, 0.03]], o(c)), 0, 0.835 * s, 0, 0, 0, 0, s), 0.9),
+        P(L([[0.34, 0], [0.3, 0.1]], st()), 0, 0, 0, 0, 0, 0, s),
+        P(L([[0.13, 0], [0.11, 0.42]], st()), 0, 0.1 * s, 0, 0, 0, 0, s),
+        P(L([[0.14, 0], [0.26, 0.07], [0.26, 0.11]], st()), 0, 0.5 * s, 0, 0, 0, 0, s),
+        neon(P(L([[0.19, 0], [0.19, 0.2]], { sides: 6, col: 48, inner: 5, glow: 0.8 }), 0, 0.61 * s, 0, 0, 0, 0, s), 1.0),
+        P(L([[0.4, 0], [0.34, 0.06], [0.06, 0.24]], st()), 0, 0.81 * s, 0, 0, 0, 0, s),
       ];
     },
-    tube(h, lean, turn, c) { // a standing tube of light on a dark foot
-      const out = [L([[0.09, 0], [0.07, 0.12]], { sides: 5, col: 16, inner: 7, glow: 0.6 })], n = Math.max(2, Math.round(h / 0.8));
-      for (let i = 0; i < n; i++) out.push(neon(P(L([[0.045, 0], [0.045, h / n + 0.015]], { sides: 5, col: c, inner: 7, glow: 0.6 }), 0, 0.1 + (h / n) * i, 0), 0.75));
+    tube(h, lean, turn) { // a stalk of bamboo: joints all the way up and a few leaves at the top
+      const H = h * 1.5, n = Math.max(3, Math.round(H / 0.6)), out = [];
+      for (let i = 0; i < n; i++) {
+        const r = 0.06 - 0.02 * i / n;
+        out.push(P(L([[r, 0], [r * 0.96, H / n - 0.02]], { sides: 6, col: 44, inner: 45, glow: 0.6 }), 0, (H / n) * i, 0));
+        out.push(P(L([[r * 1.25, 0], [r * 1.25, 0.03]], { sides: 6, col: 41, inner: 45, glow: 0.6 }), 0, (H / n) * (i + 1) - 0.03, 0));
+      }
+      for (let k = 0; k < 3; k++) out.push(P(B(0.09, 0.5, 0.012, { col: 41, inner: 45, glow: 0.5, taper: 0.1 }), 0, H - 0.25 - k * 0.3, 0, 0.9 + k * 0.15, k * 2.1, 0));
       return out.map((p) => P(p, 0, 0, 0, lean, turn, 0));
     },
-    board(w, h, c, turn) { // a sign: a lit panel on a post
-      const o = { col: 16, inner: 5, glow: 0.7, sides: 5 };
+    board(w, h, c, turn) { // a post with a crossbar and a paper lantern hanging from it
+      const wd = { col: 49, inner: 47, glow: 0.7, sides: 6 };
       return [
-        L([[0.16, 0], [0.12, 0.14]], o), P(L([[0.07, 0], [0.065, 2.0]], o), 0, 0.1, 0),
-        P(B(w + 0.14, h + 0.14, 0.09, { col: 16, inner: 5, glow: 0.7 }), 0, 2.0, 0),
-        neon(P(B(w, h, 0.12, { col: c, inner: 5, glow: 0.7 }), 0, 2.07, 0), 0.8),
+        L([[0.15, 0], [0.11, 0.14]], { col: 43, inner: 5, glow: 0.7, sides: 6 }), P(L([[0.07, 0], [0.06, 2.5]], wd), 0, 0.1, 0),
+        P(B(w + 0.5, 0.1, 0.12, { col: 49, inner: 47, glow: 0.7 }), 0, 2.36, 0), P(B(w + 0.8, 0.07, 0.16, { col: 38, inner: 47, glow: 0.7, taper: 1.06 }), 0, 2.56, 0),
+        P(B(0.015, 0.3, 0.015, { col: 38, inner: 47, glow: 0.7 }), w * 0.42, 2.06, 0),
+        neon(P(L([[0.1, 0], [0.17, 0.09], [0.17, 0.36], [0.1, 0.45]], { col: 48, inner: 47, glow: 0.7, sides: 7 }), w * 0.42, 1.62, 0), 0.95),
       ].map((p) => P(p, 0, 0, 0, 0, turn, 0));
     },
-    crate(s) { // a cargo box with a lit corner
+    crate(s) { // a wooden chest bound with rope
       return [
-        B(s, s, s, { col: 8, inner: 10, glow: 0.8 }),
-        P(B(s * 1.02, s * 0.14, s * 1.02, { col: 9, inner: 10, glow: 0.8 }), 0, s * 0.43, 0),
+        B(s, s * 0.8, s, { col: 46, inner: 47, glow: 0.8 }),
+        P(B(s * 1.04, s * 0.1, s * 1.04, { col: 38, inner: 47, glow: 0.8 }), 0, s * 0.8, 0),
+        P(B(s * 1.03, s * 0.07, s * 1.03, { col: 37, inner: 47, glow: 0.8 }), 0, s * 0.38, 0),
       ];
     },
   };
@@ -1126,163 +1164,177 @@ const MODELS = (function () {
   return { makeRig, rebuild, dispose, synth, hero, katana, props };
 })();
 
-// The place: a rain-wet plaza in a night city. The ground is a mirror under a skin of asphalt with holes in it for puddles, so every
-// neon sign, every blade and every spark is seen twice. Around it stand blocks with signs, and behind them a painted skyline.
+// The place: a clearing in a forest at night. A moon behind the trees, mist between the trunks, cedars standing all round with their crowns
+// in the dark, a floor of earth, moss and fallen needles, grass and ferns underfoot, and fireflies. What light there is comes from the moon,
+// from a few lanterns, and from whatever the blade sets burning.
 function buildWorld(scene, opt) {
   const KEY = new T.Vector3(-0.42, 0.74, -0.52).normalize();
-  const HAZE = lin(0x1c1236);
-  scene.fog = new T.Fog(HAZE, 34, 175);
+  const HAZE = lin(0x0d1c26);
+  scene.fog = new T.Fog(HAZE, 26, 120);
   let seed = 11;
   const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const NEON = ['#ff2bd6', '#3df2ff', '#ffe14d', '#ff2d55', '#5dff8f', '#b46cff'];
 
   const sky = new T.Mesh(new T.SphereGeometry(700, 32, 16), new T.ShaderMaterial({
     side: T.BackSide, depthWrite: false, fog: false,
-    uniforms: { uMoon: { value: new T.Vector3(0.5, 0.42, -0.76).normalize() }, uTop: { value: lin(0x05061a) }, uMid: { value: lin(0x241452) }, uLow: { value: lin(0x7a1f8c) } },
+    uniforms: { uMoon: { value: new T.Vector3(0.38, 0.4, -0.83).normalize() }, uTop: { value: lin(0x02050d) }, uMid: { value: lin(0x0b1f33) }, uLow: { value: lin(0x1d4250) } },
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform vec3 uMoon, uTop, uMid, uLow; varying vec3 vDir;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       void main(){
         vec3 d = normalize(vDir);
         float h = clamp(d.y, 0.0, 1.0);
-        vec3 c = mix(uLow, uMid, smoothstep(0.0, 0.2, h));
-        c = mix(c, uTop, smoothstep(0.1, 0.7, h));
+        vec3 c = mix(uLow, uMid, smoothstep(0.0, 0.22, h));
+        c = mix(c, uTop, smoothstep(0.12, 0.75, h));
         float m = max(dot(d, uMoon), 0.0);
-        c += vec3(0.5, 0.7, 1.0) * (pow(m, 30.0) * 0.35) + vec3(0.9, 0.95, 1.0) * smoothstep(0.9965, 0.9972, m) * 2.4;
-        vec2 g = floor(d.xz / max(d.y, 0.05) * 60.0);
-        c += vec3(0.7, 0.8, 1.0) * step(0.997, hash(g)) * smoothstep(0.15, 0.5, h) * 0.8;
+        c += vec3(0.45, 0.65, 0.9) * (pow(m, 14.0) * 0.4 + pow(m, 120.0) * 0.5) + vec3(1.0, 0.98, 0.9) * smoothstep(0.9925, 0.9935, m) * 3.0; // a full moon and the glow round it
+        vec2 g = floor(d.xz / max(d.y, 0.05) * 70.0);
+        c += vec3(0.75, 0.85, 1.0) * step(0.996, hash(g)) * smoothstep(0.12, 0.5, h) * 0.9;
         gl_FragColor = vec4(c, 1.0);
       }`,
   }));
   sky.renderOrder = -10;
   scene.add(sky);
 
-  // the far skyline: one long painting of towers with lit windows and signs, wrapped round the horizon
+  // the far forest: rows of treetops one behind another, each paler with distance, painted once and wrapped round the horizon
   const sk = document.createElement('canvas');
   sk.width = 2048; sk.height = 512;
   const g2 = sk.getContext('2d');
   g2.clearRect(0, 0, 2048, 512);
-  for (let layer = 0; layer < 2; layer++) {
-    let x = -20;
-    while (x < 2048) {
-      const w = 26 + rnd() * 70, h = (layer ? 90 : 170) + rnd() * (layer ? 190 : 300), y = 512 - h;
-      g2.fillStyle = layer ? '#0c0d1c' : '#15122e';
-      g2.fillRect(x, y, w, h);
-      const tone = rnd(), lit = tone < 0.5 ? '#ffc46b' : tone < 0.8 ? '#7fe9ff' : '#ff8ae6';
-      for (let wy = y + 6; wy < 506; wy += 7) for (let wx = x + 4; wx < x + w - 4; wx += 6) if (rnd() < (layer ? 0.3 : 0.16)) { g2.globalAlpha = 0.35 + rnd() * 0.65; g2.fillStyle = lit; g2.fillRect(wx, wy, 3, 3.5); }
-      g2.globalAlpha = 1;
-      if (rnd() < 0.45) { g2.fillStyle = NEON[Math.floor(rnd() * NEON.length)]; const sw = 5 + rnd() * 9, sh = 24 + rnd() * 80; g2.fillRect(x + 3 + rnd() * (w - sw - 6), y + 10 + rnd() * 30, sw, sh); }
-      if (rnd() < 0.3) { g2.fillStyle = '#ff2d55'; g2.fillRect(x + w / 2 - 1, y - 14, 2, 14); g2.fillRect(x + w / 2 - 2, y - 17, 4, 3); }
-      x += w + (rnd() < 0.25 ? 6 + rnd() * 18 : 1);
+  for (let layer = 0; layer < 3; layer++) {
+    g2.fillStyle = ['#12303a', '#0b2029', '#06131a'][layer];
+    let x = -30;
+    while (x < 2080) {
+      const w = 34 + rnd() * 50, h = 150 + layer * 55 + rnd() * 150, top = 512 - h;
+      g2.beginPath(); g2.moveTo(x + w / 2, top);
+      for (let k = 1; k <= 6; k++) { const y = top + (h * 0.8) * k / 6, half = w * 0.16 + w * 0.5 * k / 6; g2.lineTo(x + w / 2 + half, y); g2.lineTo(x + w / 2 + half * 0.55, y); }
+      for (let k = 6; k >= 1; k--) { const y = top + (h * 0.8) * k / 6, half = w * 0.16 + w * 0.5 * k / 6; g2.lineTo(x + w / 2 - half * 0.55, y); g2.lineTo(x + w / 2 - half, y); }
+      g2.closePath(); g2.fill();
+      g2.fillRect(x + w / 2 - 3, top + h * 0.7, 6, h * 0.3);
+      x += w * (0.45 + rnd() * 0.5);
     }
+    g2.fillRect(0, 512 - 60 - layer * 30, 2048, 100);
   }
-  const hz = g2.createLinearGradient(0, 300, 0, 512);
-  hz.addColorStop(0, 'rgba(60,24,96,0)'); hz.addColorStop(1, 'rgba(96,34,128,0.85)');
-  g2.fillStyle = hz; g2.fillRect(0, 300, 2048, 212);
   const skyTex = new T.CanvasTexture(sk);
   skyTex.wrapS = T.RepeatWrapping; skyTex.repeat.set(2, 1); skyTex.encoding = T.sRGBEncoding;
-  const skyline = new T.Mesh(new T.CylinderGeometry(260, 260, 130, 64, 1, true), new T.MeshBasicMaterial({ map: skyTex, transparent: true, side: T.BackSide, fog: false, depthWrite: false }));
-  skyline.position.y = 62; skyline.renderOrder = -9;
+  const skyline = new T.Mesh(new T.CylinderGeometry(240, 240, 120, 64, 1, true), new T.MeshBasicMaterial({ map: skyTex, transparent: true, side: T.BackSide, fog: false, depthWrite: false }));
+  skyline.position.y = 50; skyline.renderOrder = -9;
   scene.add(skyline);
 
-  // the nearer blocks: dark towers with signs that really glow, close enough to lie in the puddles
+  // the forest that stands round the clearing: cedars, each a trunk and a crown in tiers, thick enough that nothing shows between them far off
   const near = [];
   const lit = (piece, heat) => { for (const f of piece.faces) { f.cap = GEO.NEON; f.heat = heat; } return piece; };
-  for (let i = 0; i < 18; i++) {
-    // each block is turned to face the plaza: its width lies across the view, its depth along it
-    const a = (i / 18) * Math.PI * 2 + rnd() * 0.15, r = 58 + rnd() * 26, w = 9 + rnd() * 9, d = 9 + rnd() * 9, h = 16 + rnd() * 46, x = Math.cos(a) * r, z = Math.sin(a) * r, turn = -a + Math.PI / 2;
-    near.push(GEO.place(GEO.box(w, h, d, { col: 27 }), x, -0.5, z, 0, turn, 0));
-    const signs = 1 + Math.floor(rnd() * 3);
-    for (let k = 0; k < signs; k++) { // tall sign boards on the face that looks at the plaza
-      const sw = 1 + rnd() * 1.6, sh = 5 + rnd() * 12, sx = (rnd() - 0.5) * (w - sw - 1), sy = 3 + rnd() * Math.max(1, h - sh - 6), col = [24, 23, 21, 3, 28][Math.floor(rnd() * 5)];
-      near.push(GEO.place(lit(GEO.box(sw, sh, 0.5, { col }), 0.75), x - Math.cos(a) * (d / 2 + 0.3) - Math.sin(a) * sx, sy, z - Math.sin(a) * (d / 2 + 0.3) + Math.cos(a) * sx, 0, turn, 0));
-    }
-    for (let k = 0; k < 3; k++) near.push(GEO.place(lit(GEO.box(w * 0.86, 0.35, 0.4, { col: k % 2 ? 26 : 23 }), 0.35), x - Math.cos(a) * (d / 2 + 0.25), h * (0.25 + k * 0.25), z - Math.sin(a) * (d / 2 + 0.25), 0, turn, 0));
-  }
-  scene.add(new T.Mesh(partGeometry(near), PART_MAT));
+  const cedar = (x, z, h, r) => {
+    near.push(GEO.place(GEO.lathe([[r * 0.34, 0], [r * 0.2, h * 0.5], [r * 0.12, h * 0.62]], { sides: 6, col: 42 }), x, -0.3, z, 0, rnd() * 6, 0));
+    const tiers = 4;
+    for (let k = 0; k < tiers; k++) { const y = h * (0.26 + 0.17 * k), rr = r * (1 - k * 0.2); near.push(GEO.place(GEO.lathe([[rr, 0], [rr * 0.82, h * 0.05], [rr * 0.12, h * 0.3]], { sides: 7, col: k % 2 ? 41 : 40 }), x, y, z, 0, rnd() * 6, 0)); }
+  };
+  for (let i = 0; i < 130; i++) { const a = rnd() * Math.PI * 2, r = 43 + rnd() * rnd() * 55; cedar(Math.cos(a) * r, Math.sin(a) * r, 13 + rnd() * 16, 3 + rnd() * 2.6); }
+  // a gate on the far side of the clearing and stones that mark its edge
+  const gate = (x, z, turn) => {
+    for (const sx of [-2.6, 2.6]) near.push(GEO.place(GEO.lathe([[0.34, 0], [0.28, 6.4]], { sides: 8, col: 49 }), x + Math.cos(turn) * sx, 0, z - Math.sin(turn) * sx, 0, 0, 0));
+    near.push(GEO.place(GEO.box(7.4, 0.42, 0.5, { col: 49 }), x, 5.1, z, 0, turn, 0), GEO.place(GEO.box(8.6, 0.5, 0.7, { col: 38, taper: 1.05 }), x, 6.3, z, 0, turn, 0), GEO.place(GEO.box(9.2, 0.16, 0.9, { col: 38 }), x, 6.8, z, 0, turn, 0));
+    near.push(GEO.place(lit(GEO.box(0.9, 1.3, 0.12, { col: 48 }), 0.5), x, 5.25, z, 0, turn, 0));
+  };
+  gate(0, -41.5, 0); gate(41.5, 0, Math.PI / 2); gate(-29.3, 29.3, Math.PI / 4);
+  for (let i = 0; i < 46; i++) { const a = (i / 46) * Math.PI * 2 + rnd() * 0.08, r = 39.4 + rnd() * 1.2, s = 0.5 + rnd() * 0.9; near.push(GEO.place(GEO.lathe([[s * 0.8, 0], [s * 0.7, s * 0.5], [s * 0.2, s]], { sides: 6, col: 43 }), Math.cos(a) * r, -0.1, Math.sin(a) * r, 0, rnd() * 6, 0)); }
+  const forest = new T.Mesh(partGeometry(near), PART_MAT);
+  scene.add(forest);
 
-  // asphalt, drawn once: dark, grainy, with seams between slabs; and where the puddles are
+  // the forest floor, drawn once: dark earth, patches of moss, needles and fallen leaves
   const make = (size, draw) => { const c = document.createElement('canvas'); c.width = c.height = size; draw(c.getContext('2d')); const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; return t; };
-  const asphalt = make(512, (g) => {
-    g.fillStyle = '#2b2e3c'; g.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 12000; i++) { g.fillStyle = rnd() > 0.5 ? 'rgba(150,160,190,0.07)' : 'rgba(0,0,0,0.12)'; const s = 1 + rnd() * 2; g.fillRect(rnd() * 512, rnd() * 512, s, s); }
-    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 2;
-    for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128, 512); g.stroke(); g.beginPath(); g.moveTo(0, i * 128); g.lineTo(512, i * 128); g.stroke(); }
-    g.strokeStyle = 'rgba(120,130,160,0.10)'; g.lineWidth = 1;
-    for (let i = 0; i < 30; i++) { g.beginPath(); let x = rnd() * 512, y = rnd() * 512, a = rnd() * 6.28; g.moveTo(x, y); for (let k = 0; k < 5; k++) { a += (rnd() - 0.5) * 1.2; x += Math.cos(a) * 20; y += Math.sin(a) * 20; g.lineTo(x, y); } g.stroke(); }
+  const floor = make(1024, (g) => {
+    g.fillStyle = '#1d1f1c'; g.fillRect(0, 0, 1024, 1024);
+    g.filter = 'blur(14px)';
+    for (let i = 0; i < 90; i++) { // moss, wrapped round the edges so the tile has no seam
+      const x = rnd() * 1024, y = rnd() * 1024, rx = 30 + rnd() * 90, ry = 20 + rnd() * 60, a = rnd() * 3.14;
+      g.fillStyle = 'rgba(' + [Math.round(24 + rnd() * 16), Math.round(40 + rnd() * 24), Math.round(28 + rnd() * 12)].join(',') + ',0.5)';
+      for (const ox of [-1024, 0, 1024]) for (const oy of [-1024, 0, 1024]) { g.beginPath(); g.ellipse(x + ox, y + oy, rx, ry, a, 0, 6.29); g.fill(); }
+    }
+    g.filter = 'none';
+    for (let i = 0; i < 26000; i++) { g.fillStyle = rnd() > 0.5 ? 'rgba(190,200,160,0.06)' : 'rgba(0,0,0,0.14)'; const s = 1 + rnd() * 2.4; g.fillRect(rnd() * 1024, rnd() * 1024, s, s); }
+    for (let i = 0; i < 2600; i++) { // needles
+      const x = rnd() * 1024, y = rnd() * 1024, a = rnd() * 6.28, l = 4 + rnd() * 9;
+      g.strokeStyle = rnd() < 0.5 ? 'rgba(120,96,58,0.5)' : 'rgba(70,110,64,0.45)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    for (let i = 0; i < 520; i++) { // leaves
+      g.fillStyle = ['rgba(150,86,40,0.6)', 'rgba(170,120,50,0.55)', 'rgba(110,60,36,0.6)'][Math.floor(rnd() * 3)];
+      g.beginPath(); g.ellipse(rnd() * 1024, rnd() * 1024, 3 + rnd() * 3, 1.5 + rnd() * 1.5, rnd() * 3.14, 0, 6.29); g.fill();
+    }
   });
-  asphalt.repeat.set(55, 55); asphalt.encoding = T.sRGBEncoding;
-  const puddles = make(512, (g) => { // green is how much asphalt covers the mirror: little in a puddle, most elsewhere
-    g.fillStyle = 'rgb(0,214,0)'; g.fillRect(0, 0, 512, 512);
-    g.filter = 'blur(9px)';
-    for (let i = 0; i < 26; i++) { g.fillStyle = 'rgb(0,' + Math.round(70 + rnd() * 60) + ',0)'; g.beginPath(); g.ellipse(rnd() * 512, rnd() * 512, 16 + rnd() * 54, 10 + rnd() * 30, rnd() * 3.14, 0, 6.29); g.fill(); }
-  });
-  puddles.repeat.set(9, 9);
-  const mirrorOn = !!(opt && opt.mirror) && !!T.Reflector;
-  let mirror = null;
-  if (mirrorOn) {
-    mirror = new T.Reflector(new T.CircleGeometry(150, 48), { clipBias: 0.003, textureWidth: 1024, textureHeight: 576, color: lin(0x5a5f86) });
-    mirror.rotation.x = -Math.PI / 2;
-    scene.add(mirror);
-  }
-  const groundMat = new T.MeshLambertMaterial({ map: asphalt, alphaMap: mirrorOn ? puddles : null, transparent: mirrorOn });
+  floor.repeat.set(34, 34); floor.encoding = T.sRGBEncoding;
+  const groundMat = new T.MeshLambertMaterial({ map: floor });
   const ground = new T.Mesh(new T.PlaneGeometry(900, 900), groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = 0.006; ground.receiveShadow = true;
   scene.add(ground);
 
-  // lines of light painted on the plaza: the edge of the ring, and two faint circles inside it
-  const paint = (mesh, r, gr, b) => { mesh.material = new T.MeshBasicMaterial({ color: new T.Color(r, gr, b), fog: true }); mesh.rotation.x = -Math.PI / 2; mesh.position.y = 0.02; scene.add(mesh); return mesh; };
-  paint(new T.Mesh(new T.RingGeometry(38.0, 38.3, 128)), 1.5, 0.16, 1.2);
-  paint(new T.Mesh(new T.RingGeometry(12.0, 12.05, 96)), 0.05, 0.3, 0.38);
-  paint(new T.Mesh(new T.RingGeometry(24.0, 24.05, 128)), 0.05, 0.26, 0.34);
+  // grass and ferns: thousands of small blades standing in tufts, thicker toward the trees
+  {
+    const blade = new T.ConeGeometry(0.032, 0.34, 3, 1); blade.translate(0, 0.17, 0);
+    const N = opt && opt.light ? 2600 : 6000, grass = new T.InstancedMesh(blade, new T.MeshLambertMaterial({ color: 0xffffff }), N);
+    const m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), v = new T.Vector3(), sc = new T.Vector3(), col = new T.Color();
+    let cx = 0, cz = 0;
+    for (let i = 0; i < N; i++) {
+      if (i % 9 === 0) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * 56; cx = Math.cos(a) * r; cz = Math.sin(a) * r; }
+      v.set(cx + (rnd() - 0.5) * 0.9, 0, cz + (rnd() - 0.5) * 0.9);
+      e.set((rnd() - 0.5) * 0.7, rnd() * 6.28, (rnd() - 0.5) * 0.7); q.setFromEuler(e);
+      const s = 0.6 + rnd() * 1.3; sc.set(s, s * (0.7 + rnd() * 0.9), s);
+      grass.setMatrixAt(i, m.compose(v, q, sc));
+      grass.setColorAt(i, col.setRGB(0.012 + rnd() * 0.02, 0.04 + rnd() * 0.05, 0.02 + rnd() * 0.02));
+    }
+    grass.receiveShadow = true; grass.frustumCulled = false;
+    scene.add(grass);
+  }
 
-  scene.add(new T.HemisphereLight(lin(0x6f86ee), lin(0x7a2a80), 0.85));
-  const sun = new T.DirectionalLight(lin(0xc4d6ff), 2.3); // the moon and the glow of the city, cool and from above
+  // the rope round the clearing, where the forest proper begins
+  const rope = new T.Mesh(new T.RingGeometry(38.0, 38.16, 128), new T.MeshBasicMaterial({ color: new T.Color(0.5, 0.09, 0.05), fog: true }));
+  rope.rotation.x = -Math.PI / 2; rope.position.y = 0.03; scene.add(rope);
+
+  scene.add(new T.HemisphereLight(lin(0x4f73b8), lin(0x16242a), 0.7));
+  const sun = new T.DirectionalLight(lin(0xbdd2ff), 2.1); // the moon, cool and from above
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
   sc.left = -22; sc.right = 22; sc.top = 22; sc.bottom = -22; sc.near = 1; sc.far = 130;
   sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.035;
   scene.add(sun, sun.target);
-  const rim = new T.DirectionalLight(lin(0xff3ad0), 1.0); // a magenta rim from behind, so figures stand off the dark
+  const rim = new T.DirectionalLight(lin(0x3f9fc8), 0.6); // a green light out of the mist behind, so figures stand off the dark
   rim.position.set(30, 14, 40);
   scene.add(rim);
-  const pools = [[-9, -6, 0xff2bd6], [11, 7, 0x3df2ff], [3, -15, 0xffe14d], [-14, 12, 0x3df2ff], [17, -10, 0xff2bd6]];
-  for (const [x, z, hex] of pools) { const l = new T.PointLight(lin(hex), 2.6, 19, 1.5); l.position.set(x, 3.4, z); scene.add(l); }
+  const pools = [[-9, -6, 0xffa64d], [11, 7, 0x4fb8d8], [3, -15, 0xffa64d], [-14, 12, 0x4fb8d8], [17, -10, 0xffa64d]]; // lantern light, and the cold light of spirits
+  for (const [x, z, hex] of pools) { const l = new T.PointLight(lin(hex), 1.7, 17, 1.5); l.position.set(x, 3.0, z); scene.add(l); }
 
-  // rain: short streaks falling through a box that travels with the eye
-  const N = opt && opt.light ? 260 : 620, rp = new Float32Array(N * 6), drops = [];
-  for (let i = 0; i < N; i++) drops.push([(rnd() - 0.5) * 60, rnd() * 22, (rnd() - 0.5) * 60, 17 + rnd() * 9]);
-  const rg = new T.BufferGeometry();
-  rg.setAttribute('position', new T.BufferAttribute(rp, 3));
-  const rain = new T.LineSegments(rg, new T.LineBasicMaterial({ color: new T.Color(0.5, 0.62, 0.95), transparent: true, opacity: 0.3, depthWrite: false }));
-  rain.frustumCulled = false;
-  scene.add(rain);
+  // fireflies: slow lights adrift in a box that travels with the eye
+  const N = opt && opt.light ? 70 : 150, fp = new Float32Array(N * 3), flies = [];
+  for (let i = 0; i < N; i++) flies.push([(rnd() - 0.5) * 54, 0.3 + rnd() * 3.2, (rnd() - 0.5) * 54, rnd() * 6.28, 0.4 + rnd() * 0.8]);
+  const fg = new T.BufferGeometry();
+  fg.setAttribute('position', new T.BufferAttribute(fp, 3));
+  const fireflies = new T.Points(fg, new T.PointsMaterial({ color: new T.Color(1.9, 2.3, 0.7), size: 0.11, sizeAttenuation: true, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+  fireflies.frustumCulled = false;
+  scene.add(fireflies);
+  let clock = 0;
 
-  const lamp = new T.PointLight(lin(0xdfe6ff), 1.5, 11, 1.4); // a pool of light that goes where the wanderer goes, so the fight is never in the dark
+  const lamp = new T.PointLight(lin(0xcfdcff), 1.3, 11, 1.4); // a pool of light that goes where the fire-bearer goes, so the fight is never in the dark
   scene.add(lamp);
 
   return {
-    KEY, sun, mirror,
+    KEY, sun, mirror: null,
     follow(x, z) { // the shadow box travels with the wanderer, in whole texels so shadows do not swim
       const step = 44 / 2048 * 8, fx = Math.round(x / step) * step, fz = Math.round(z / step) * step;
       sun.target.position.set(fx, 0, fz); sun.position.set(fx + KEY.x * 60, KEY.y * 60, fz + KEY.z * 60);
       sky.position.set(x, 0, z); skyline.position.x = x * 0.6; skyline.position.z = z * 0.6; lamp.position.set(x, 4.2, z + 1.5);
     },
     step(dt, x, z) {
+      clock += dt;
       for (let i = 0; i < N; i++) {
-        const d = drops[i];
-        d[1] -= d[3] * dt; d[0] += 1.6 * dt;
-        if (d[1] < 0) { d[1] += 22; d[0] = (rnd() - 0.5) * 60; d[2] = (rnd() - 0.5) * 60; }
-        const o = i * 6, px = x + d[0], pz = z + d[2];
-        rp[o] = px; rp[o + 1] = d[1]; rp[o + 2] = pz; rp[o + 3] = px - 0.06; rp[o + 4] = d[1] + 0.55; rp[o + 5] = pz;
+        const f = flies[i], o = i * 3;
+        let px = f[0] + Math.sin(clock * f[4] + f[3]) * 1.6, pz = f[2] + Math.cos(clock * f[4] * 0.8 + f[3] * 2) * 1.6;
+        // the box wraps, so wherever he goes there are as many round him
+        px = x + ((px - x + 27) % 54 + 54) % 54 - 27; pz = z + ((pz - z + 27) % 54 + 54) % 54 - 27;
+        fp[o] = px; fp[o + 1] = f[1] + Math.sin(clock * 1.3 * f[4] + f[3]) * 0.4; fp[o + 2] = pz;
       }
-      rg.attributes.position.needsUpdate = true;
+      fg.attributes.position.needsUpdate = true;
     },
-    setMirror(on) { // without the mirror the street is simply dry asphalt: far cheaper to draw
-      if (!mirror) return;
-      mirror.visible = on; groundMat.alphaMap = on ? puddles : null; groundMat.transparent = on; groundMat.needsUpdate = true;
-    },
+    setMirror() { /* there is no water here to mirror anything */ },
   };
 }
 
@@ -1678,7 +1730,7 @@ const SFX = (function () {
     if (P.dead || !P.rig || !P.rig.root.visible || S.mode === 'dead') return;
     const b = P.rig.bones, hot = P.heat + (P.over ? 0.6 : 0);
     const r = dt * (9 + 16 * hot);
-    for (const [bone, len] of [[b.scarf2, 0.4], [b.band2, 0.3]]) {
+    for (const [bone, len] of [[b.scarf2, 0.44], [b.band2, 0.32], [b.cape2, 0.5]]) {
       if (rnd() >= r) continue;
       v1.set(0, -len, 0).applyMatrix4(bone.matrixWorld);
       fire(v1.x, v1.y - 0.04, v1.z, 0.2 + 0.2 * Math.min(1, hot) + rnd() * 0.12, 0.32, { vy: 0.9, gain: 0.85 });
@@ -1695,7 +1747,6 @@ const SFX = (function () {
     P.rig = MODELS.makeRig(MODELS.hero());
     scene.add(P.rig.root);
     Object.assign(P, { x: 0, z: 0, yaw: Math.PI, hp: P.maxHp, focus: 1, speed: 0, dash: 0, dashCd: 0, invul: 0, kx: 0, kz: 0, lunge: null, sw: null, queue: null, dead: false, act: null, stance: 0, vx: 0, vz: 0, y: 0, heat: 0, yawS: Math.PI, snap: true });
-    P.rig.root.scale.setScalar(1.1);
     katana.visible = true;
   }
   // ---- what the blade learns: each level offers three of these
@@ -1779,6 +1830,9 @@ const SFX = (function () {
     b.band2.rotation.set(fly * 0.3 + Math.sin(t * 9.4 + 0.4) * (0.1 + 0.2 * flow), 0, 0);
     b.tailL.rotation.set(fly * 0.66 + Math.sin(t * 6.3) * 0.07 * (0.3 + flow), 0, -0.05 - fly * 0.12);
     b.tailR.rotation.set(fly * 0.6 + Math.sin(t * 6.9 + 1.7) * 0.07 * (0.3 + flow), 0, 0.05 + fly * 0.12);
+    // the cape: it hangs a little off the back at rest, lifts as he moves, and its torn edge lags and snaps behind it
+    b.cape.rotation.set(0.1 + fly * 0.78 + Math.sin(t * 4.6 + 0.7) * (0.04 + 0.07 * flow), 0, Math.sin(t * 3.1) * 0.05 * (0.3 + flow));
+    b.cape2.rotation.set(fly * 0.22 + Math.sin(t * 7.7 + 2.0) * (0.07 + 0.2 * flow), 0, Math.sin(t * 5.3 + 1.0) * 0.08 * flow);
     P.rig.root.updateMatrixWorld(true);
   }
   function carry(b, run, dt) { // carried low and behind while running, low and ahead while standing
@@ -1873,14 +1927,18 @@ const SFX = (function () {
     let turn = P.yaw - P.yawS; turn = Math.atan2(Math.sin(turn), Math.cos(turn)); P.yawS += turn * (P.snap ? 1 : 1 - Math.exp(-dt * 30)); // he turns fast, but he turns
     P.rig.root.position.set(P.x, P.y, P.z);
     P.rig.root.rotation.y = P.yawS;
-    const dash = P.dash > 0 || P.lunge ? 1 : 0;
-    b.hips.position.y = b.hips.rest[1] + Math.abs(s) * 0.035 * run - 0.05 * run - dash * 0.12;
-    b.hips.rotation.x = 0.16 * run + dash * 0.5;
-    b.chest.rotation.set(0.1 * run, s * 0.12 * run, 0);
-    b.head.rotation.x = -0.14 * run - dash * 0.35;
-    b.thighL.rotation.x = -s * 0.85 * run; b.shinL.rotation.x = Math.max(0, c) * 1.1 * run + 0.06;
-    b.thighR.rotation.x = s * 0.85 * run; b.shinR.rotation.x = Math.max(0, -c) * 1.1 * run + 0.06;
-    b.armL.rotation.set(s * 0.7 * run, 0, 0.1); b.foreL.rotation.set(-0.3 - 0.5 * run, 0, 0);
+    const dash = P.dash > 0 || P.lunge ? 1 : 0, idle = 1 - run, breath = Math.sin(S.real * 2.2);
+    // At rest he stands side-on with his knees soft, weight on the back foot, the off hand resting at the scabbard, and he breathes.
+    // Running, he goes low and forward with long strides and the off arm thrown back; in a dash he is almost flat to the ground.
+    P.rig.root.rotation.z = lerp(P.rig.root.rotation.z || 0, clamp(-turn * 0.9, -0.3, 0.3) * run, 1 - Math.exp(-dt * 10)); // he leans into a turn
+    b.hips.position.y = b.hips.rest[1] + Math.abs(s) * 0.05 * run - 0.09 * run - dash * 0.2 - 0.05 * idle + breath * 0.008 * idle;
+    b.hips.rotation.set(0.32 * run + dash * 0.7, 0, 0);
+    b.chest.rotation.set(0.16 * run + dash * 0.25 + breath * 0.025 * idle, s * 0.22 * run + 0.42 * idle, 0);
+    b.head.rotation.set(-0.36 * run - dash * 0.6 - breath * 0.015 * idle, -0.36 * idle, 0);
+    b.thighL.rotation.set(-s * 1.05 * run - 0.34 * idle, 0, 0.1 * idle); b.shinL.rotation.x = Math.max(0, c) * 1.5 * run + 0.08 + 0.4 * idle;
+    b.thighR.rotation.set(s * 1.05 * run + 0.26 * idle, 0, -0.1 * idle); b.shinR.rotation.x = Math.max(0, -c) * 1.5 * run + 0.08 + 0.22 * idle;
+    if (dash) { b.thighL.rotation.x = -1.2; b.shinL.rotation.x = 1.5; b.thighR.rotation.x = 0.9; b.shinR.rotation.x = 0.25; }
+    b.armL.rotation.set((0.95 + s * 0.2) * run + dash * 0.4 + 0.12 * idle, 0, 0.14 + 0.22 * idle); b.foreL.rotation.set(-0.22 - 0.2 * run - 1.0 * idle, 0, 0);
     b.scarf.rotation.x = clamp(P.speed * 0.17 + dash * 0.8, 0, 1.35) + Math.sin(S.real * 9) * 0.1 * (0.2 + run);
     // a cut is made from a deep lunge: front knee bent, back leg stretched out, body low and leaning in. It eases back up afterwards.
     if (!act && !(sw && sw.t < sw.T)) P.stance = Math.max(0, P.stance - dt * (run > 0.3 ? 10 : sw ? 1.2 : 3.4));
