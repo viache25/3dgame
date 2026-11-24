@@ -109,21 +109,23 @@ const MODELS = (function () {
     ];
   }
 
-  // The fire-bearer. Not meant to be cut, but built the same way so that a lost fight leaves a heap. A tall, lean figure in ink-dark cloth:
-  // a white fox mask with eyes of fire under a hood, a long torn cape, wide trousers bound at the shin, one great layered shoulder guard of
-  // dark red lacquer, bracers and greaves to match, a rope belt, a scabbard at the left hip and a paper lantern at the right in which his fire
-  // is kept. Everything that hangs from him (cape, cords, the panels of his coat) is on bones of its own and streams behind him.
+  // The ronin. Not meant to be cut, but built the same way so that a lost fight leaves a heap. A tall, lean swordsman without a master:
+  // the red mask of a demon over his face (black horns ringed with gold, a heavy brow lined in gold, tusks, and eyes that burn), long grey
+  // hair down his back, a dark kimono with a pale collar, wide trousers bound at the shin, a torn cloak, one layered shoulder guard of black
+  // lacquer, bracers and greaves to match, a sash, a scabbard at the left hip and a paper lantern at the right. Everything that hangs from
+  // him (hair, cloak, the panels of his coat) is on bones of its own and streams behind him.
   function hero() {
     const o = (col, extra) => Object.assign({ col, inner: 50, glow: 0.3 }, extra || {});
     const ember = (piece, heat) => trim(piece, heat);
     const arm = (s) => {
       const sx = s === 'L' ? 1 : -1, L0 = s === 'L';
-      const guard = L0 ? [ // the great shoulder guard: three plates, each lower and wider than the last, with fire along their edges
-        P(B(0.2, 0.05, 0.24, o(51, { taper: 0.8 })), sx * 0.03, 0.03, 0, 0, 0, -sx * 0.22),
-        P(B(0.22, 0.045, 0.26, o(51, { taper: 0.88 })), sx * 0.07, -0.035, 0, 0, 0, -sx * 0.42),
+      const guard = L0 ? [ // the shoulder guard: three plates, each lower and wider than the last, with fire along their edges
+        P(B(0.2, 0.05, 0.24, o(54, { taper: 0.8 })), sx * 0.03, 0.03, 0, 0, 0, -sx * 0.22),
+        P(B(0.22, 0.045, 0.26, o(54, { taper: 0.88 })), sx * 0.07, -0.035, 0, 0, 0, -sx * 0.42),
         ember(P(B(0.225, 0.012, 0.265, o(33)), sx * 0.074, -0.046, 0, 0, 0, -sx * 0.42), 0.7),
-        P(B(0.21, 0.045, 0.25, o(51, { taper: 0.9 })), sx * 0.105, -0.105, 0, 0, 0, -sx * 0.62),
+        P(B(0.21, 0.045, 0.25, o(54, { taper: 0.9 })), sx * 0.105, -0.105, 0, 0, 0, -sx * 0.62),
         ember(P(B(0.215, 0.012, 0.255, o(33)), sx * 0.11, -0.116, 0, 0, 0, -sx * 0.62), 0.7),
+        P(L([[0.02, 0], [0.02, 0.012]], o(60, { sides: 6 })), sx * 0.05, 0.08, 0.07), P(L([[0.02, 0], [0.02, 0.012]], o(60, { sides: 6 })), sx * 0.05, 0.08, -0.07),
       ] : [P(B(0.15, 0.045, 0.19, o(50, { taper: 0.8 })), sx * 0.02, 0.02, 0, 0, 0, -sx * 0.25)];
       return [
         { name: 'arm' + s, parent: 'chest', at: [sx * 0.2, 0.36, 0], pieces: [
@@ -132,7 +134,7 @@ const MODELS = (function () {
         ].concat(guard) },
         { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.3, 0], pieces: [
           limb(0.28, 0.046, 0.038, o(36, { sides: 8 })),
-          P(L([[0.05, 0], [0.058, 0.16]], o(51, { sides: 8 })), 0, -0.24, 0),
+          P(L([[0.05, 0], [0.058, 0.16]], o(54, { sides: 8 })), 0, -0.24, 0),
           ember(P(L([[0.061, 0], [0.061, 0.014]], o(33, { sides: 8 })), 0, -0.085, 0), 0.7),
           P(L([[0.05, 0], [0.05, 0.02]], o(37, { sides: 8 })), 0, -0.26, 0),
           P(B(0.062, 0.085, 0.07, o(50)), 0, -0.36, 0),
@@ -145,7 +147,7 @@ const MODELS = (function () {
         { name: 'thigh' + s, parent: 'hips', at: [sx * 0.085, -0.07, 0], pieces: [limb(0.44, 0.105, 0.155, o(50, { sides: 8 }))] },
         { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.44, 0], pieces: [
           limb(0.4, 0.062, 0.044, o(36, { sides: 8 })),
-          P(B(0.085, 0.26, 0.04, o(51, { taper: 0.75 })), 0, -0.31, 0.045),
+          P(B(0.085, 0.26, 0.04, o(54, { taper: 0.75 })), 0, -0.31, 0.045),
           ember(P(B(0.09, 0.012, 0.046, o(33)), 0, -0.05, 0.045), 0.6),
           P(L([[0.056, 0], [0.056, 0.022]], o(37, { sides: 8 })), 0, -0.34, 0),
           P(B(0.085, 0.07, 0.25, o(50, { taper: 0.8 })), 0, -0.47, 0.05),
@@ -153,23 +155,57 @@ const MODELS = (function () {
       ];
     };
     const saya = (piece) => P(piece, 0.18, 0.02, 0.16, -1.9, 0, 0);
-    // a panel of cloth hanging from its bone, with an ember along its lower edge
     const cloth = (w, len, taper, col, heat) => [P(B(w, len, 0.022, o(col, { taper: 1 / taper })), 0, -len, 0), ember(P(B(w * taper, 0.022, 0.026, o(33)), 0, -len, 0), heat)];
-    const cord = (w, len, taper, heat) => [ember(P(B(w * taper, len, 0.02, o(33, { taper: 1 / taper })), 0, -len, 0), heat)];
-    const ear = (sx) => [
-      P(L([[0.055, 0], [0, 0.2]], o(52, { sides: 4, sz: 0.5 })), sx * 0.078, 0.2, 0.035, 0.12, 0, -sx * 0.24),
-      P(L([[0.03, 0], [0, 0.12]], o(49, { sides: 4, sz: 0.5 })), sx * 0.078, 0.215, 0.052, 0.12, 0, -sx * 0.24),
+    // a length of hair hanging from its bone: w wide at the top, narrowing by `taper` to the bottom
+    // Hair is made of locks, each a narrow strip of its own: [x, width, length, colour, how far back it lies]. The upper length of a fall
+    // of hair is straight strips side by side; the lower length is the same locks running out to points at different heights.
+    const locks = (list, point) => list.map(([x, w, len, col, z]) => P(B(w * (point ? 0.16 : 0.92), len, 0.026, o(col, { taper: point ? 1 / 0.16 : 1 / 0.92 })), x, -len, z || 0));
+
+    // ---- the mask. Built about the face and then set a little larger than life, as such masks are.
+    const K = 1.14, mk = (piece) => P(piece, 0, 0.0, -0.008, 0, 0, 0, K);
+    const horn = (sx) => { // out from the temple, then up, then to a point: three lengths, each turned a little further upright
+      const out = [], segs = [[0.032, 0.026, 0.075, 1.05], [0.026, 0.017, 0.08, 0.6], [0.017, 0, 0.1, 0.12]];
+      let x = sx * 0.072, y = 0.2, z = 0.062;
+      out.push(P(L([[0.037, 0], [0.037, 0.014]], o(60, { sides: 7 })), x, y, z, 0.1, 0, -sx * 1.05));
+      for (const [r0, r1, len, tilt] of segs) {
+        out.push(P(L([[r0, 0], [r1, len]], o(33, { sides: 7 })), x, y, z, 0.1, 0, -sx * tilt));
+        x += sx * Math.sin(tilt) * len * 0.98; y += Math.cos(tilt) * len * 0.98; z += 0.1 * len;
+      }
+      return out;
+    };
+    const side = (sx) => [
+      P(B(0.11, 0.05, 0.062, o(55)), sx * 0.053, 0.148, 0.106, 0, 0, sx * 0.3),                              // the brow, drawn down toward the nose
+      P(B(0.118, 0.009, 0.014, o(60)), sx * 0.054, 0.142, 0.14, 0, 0, sx * 0.3),                              // and the line of gold under it
+      P(B(0.056, 0.032, 0.02, o(33)), sx * 0.05, 0.112, 0.104, 0, 0, sx * 0.22),                              // the hollow of the eye
+      ember(P(B(0.034, 0.013, 0.014, o(33)), sx * 0.05, 0.121, 0.113, 0, 0, sx * 0.22), 2.0),                 // and what burns in it
+      P(B(0.06, 0.07, 0.045, o(55, { taper: 0.75 })), sx * 0.073, 0.045, 0.1),                                // the cheek
+      P(B(0.022, 0.13, 0.07, o(56, { taper: 0.8 })), sx * 0.107, 0.03, 0.066),                                // the wing of the mask by the ear
+      P(L([[0.018, 0], [0.013, 0.05], [0, 0.115]], o(59, { sides: 6 })), sx * 0.066, -0.012, 0.126, 0.22, 0, -sx * 0.2), // a tusk from the lower jaw
+      P(L([[0.011, 0], [0, 0.05]], o(59, { sides: 5 })), sx * 0.036, 0.05, 0.13, Math.PI, 0, 0),                // a fang from the upper
+      P(L([[0.014, 0], [0.014, 0.01]], o(56, { sides: 6 })), sx * 0.062, 0.168, 0.14, Math.PI / 2, 0, 0),       // a boss on the brow
     ];
+    const mask = [
+      P(B(0.15, 0.255, 0.04, o(55, { taper: 1.32 })), 0, -0.012, 0.086),                                        // the face of it
+      P(B(0.19, 0.075, 0.05, o(55, { taper: 0.82 })), 0, 0.172, 0.088),                                         // the forehead
+      P(B(0.034, 0.034, 0.016, o(56, { taper: 0.6 })), 0, 0.176, 0.114),                                           // a crease between the brows
+      P(B(0.056, 0.078, 0.052, o(55, { taper: 0.42 })), 0, 0.066, 0.118),                                       // the nose, broad at the nostrils
+      P(B(0.136, 0.022, 0.046, o(55)), 0, 0.052, 0.112),                                                        // the upper lip, drawn back
+      P(B(0.122, 0.052, 0.03, o(33)), 0, 0.004, 0.108),                                                         // the mouth
+      P(B(0.108, 0.017, 0.012, o(59)), 0, 0.036, 0.127), P(B(0.098, 0.015, 0.012, o(59)), 0, 0.006, 0.127),     // teeth, above and below
+      P(B(0.118, 0.04, 0.052, o(55, { taper: 1.2 })), 0, -0.04, 0.108),                                         // the jaw
+      ...side(1), ...side(-1), ...horn(1), ...horn(-1),
+    ].map(mk);
     return [
       { name: 'hips', parent: null, at: [0, 0.92, 0], pieces: [
         P(L([[0.14, 0], [0.165, 0.1], [0.15, 0.2]], o(50, { sides: 8, sz: 0.72 })), 0, -0.12, 0),
-        P(L([[0.168, 0], [0.18, 0.03], [0.168, 0.06]], o(37, { sides: 10, sz: 0.74 })), 0, 0.03, 0),
+        P(L([[0.166, 0], [0.172, 0.05], [0.166, 0.1]], o(56, { sides: 10, sz: 0.74 })), 0, 0.0, 0),              // the sash
+        P(L([[0.176, 0], [0.176, 0.022]], o(37, { sides: 10, sz: 0.74 })), 0, 0.04, 0),
         P(B(0.085, 0.085, 0.06, o(37, { taper: 0.75 })), 0.02, 0.02, 0.12),
-        P(B(0.032, 0.22, 0.018, o(52, { taper: 0.6 })), -0.02, -0.2, 0.135), P(B(0.032, 0.17, 0.018, o(52, { taper: 0.6 })), 0.045, -0.15, 0.135),
-        saya(B(0.04, 0.98, 0.056, o(38, { taper: 0.72 }))),
-        saya(P(B(0.052, 0.05, 0.068, o(51)), 0, 0.0, 0)),
+        P(B(0.04, 0.26, 0.018, o(56, { taper: 0.6 })), -0.02, -0.24, 0.135), P(B(0.04, 0.2, 0.018, o(56, { taper: 0.6 })), 0.05, -0.18, 0.135),
+        saya(B(0.04, 0.98, 0.056, o(54, { taper: 0.72 }))),
+        saya(P(B(0.052, 0.05, 0.068, o(60)), 0, 0.0, 0)),
         saya(P(B(0.048, 0.03, 0.064, o(37)), 0, 0.3, 0)),
-        saya(P(B(0.04, 0.04, 0.056, o(51)), 0, 0.9, 0)),
+        saya(P(B(0.04, 0.04, 0.056, o(60)), 0, 0.9, 0)),
         // the lantern at the right hip
         P(B(0.012, 0.14, 0.012, o(38)), -0.2, -0.12, 0.07),
         P(L([[0.05, 0], [0.064, 0.022]], o(38, { sides: 8 })), -0.2, -0.14, 0.07),
@@ -179,28 +215,22 @@ const MODELS = (function () {
       { name: 'chest', parent: 'hips', at: [0, 0.1, 0], pieces: [
         L([[0.122, 0], [0.19, 0.3], [0.14, 0.43]], o(50, { sides: 8, sz: 0.66 })),
         P(B(0.05, 0.36, 0.03, o(52)), 0.045, 0.06, 0.1, -0.12, 0, 0.3), P(B(0.05, 0.36, 0.03, o(52)), -0.045, 0.06, 0.1, -0.12, 0, -0.3), // the collar, crossed
-        P(B(0.2, 0.15, 0.04, o(51, { taper: 0.8 })), 0, 0.04, 0.085),
-        ember(P(B(0.045, 0.045, 0.02, o(33, { taper: 0.2 })), 0, 0.28, 0.135), 1.0),
         P(L([[0.1, 0], [0.085, 0.07]], o(50, { sides: 8 })), 0, 0.385, 0),
       ] },
       { name: 'head', parent: 'chest', at: [0, 0.42, 0], pieces: [
         L([[0.048, -0.03], [0.048, 0.05]], o(14, { sides: 8 })),
         L([[0.066, 0.02], [0.096, 0.08], [0.096, 0.17], [0.066, 0.23]], o(14, { sides: 8 })),
-        P(L([[0.112, 0], [0.124, 0.11], [0.104, 0.2], [0.05, 0.27]], o(50, { sides: 9 })), 0, 0.0, -0.028),   // the hood
-        P(L([[0.14, 0], [0.11, 0.07]], o(50, { sides: 9, sz: 0.8 })), 0, -0.03, -0.035),                        // and its fall onto the shoulders
-        P(B(0.17, 0.2, 0.034, o(52, { taper: 0.78 })), 0, 0.04, 0.088),                                           // the mask: a fox's face
-        P(B(0.08, 0.17, 0.07, o(52, { taper: 0.35 })), 0, 0.05, 0.1, Math.PI / 2, 0, 0),                          // a long muzzle
-        P(B(0.026, 0.026, 0.02, o(38)), 0, 0.037, 0.27),
-        ember(P(B(0.058, 0.02, 0.02, o(33)), 0.048, 0.152, 0.106, 0, 0, 0.34), 1.7), ember(P(B(0.058, 0.02, 0.02, o(33)), -0.048, 0.152, 0.106, 0, 0, -0.34), 1.7),
-        P(B(0.015, 0.075, 0.012, o(49)), 0.068, 0.055, 0.109, 0, 0, -0.38), P(B(0.015, 0.075, 0.012, o(49)), -0.068, 0.055, 0.109, 0, 0, 0.38),
-        P(B(0.02, 0.055, 0.012, o(49)), 0, 0.185, 0.104),
-        ...ear(1), ...ear(-1),
+        P(L([[0.104, 0], [0.114, 0.08], [0.094, 0.17], [0.04, 0.215]], o(58, { sides: 9 })), 0, 0.06, -0.034),   // hair over the crown
+        P(B(0.024, 0.34, 0.022, o(57, { taper: 1.9 })), 0.127, -0.12, 0.03, 0, 0, -0.05), P(B(0.024, 0.4, 0.022, o(57, { taper: 1.9 })), -0.127, -0.18, 0.03, 0, 0, 0.05), // two locks that fall past the mask
+        ...mask,
       ] },
-      { name: 'scarf', parent: 'chest', at: [-0.05, 0.56, -0.14], pieces: cord(0.085, 0.36, 0.9, 0.8) },
-      { name: 'scarf2', parent: 'scarf', at: [0, -0.36, 0], pieces: cord(0.076, 0.44, 0.4, 0.8) },
-      { name: 'band', parent: 'chest', at: [0.05, 0.56, -0.14], pieces: cord(0.07, 0.28, 0.9, 0.65) },
-      { name: 'band2', parent: 'band', at: [0, -0.28, 0], pieces: cord(0.063, 0.32, 0.4, 0.65) },
-      { name: 'cape', parent: 'chest', at: [0, 0.4, -0.115], pieces: [P(B(0.36, 0.5, 0.024, o(50, { taper: 1 / 1.25 })), 0, -0.5, 0), P(B(0.3, 0.46, 0.016, o(51, { taper: 1 / 1.25 })), 0, -0.48, 0.016)] },
+      { name: 'scarf', parent: 'head', at: [0, 0.14, -0.13], pieces: locks([[-0.088, 0.05, 0.4, 58, -0.006], [-0.044, 0.052, 0.4, 57, 0.004], [0, 0.056, 0.4, 58, -0.01], [0.044, 0.052, 0.4, 57, 0.004], [0.088, 0.05, 0.4, 58, -0.006]]) },
+      { name: 'scarf2', parent: 'scarf', at: [0, -0.4, 0], pieces: locks([[-0.088, 0.05, 0.34, 58, -0.006], [-0.044, 0.052, 0.52, 57, 0.004], [0, 0.056, 0.42, 58, -0.01], [0.044, 0.052, 0.58, 57, 0.004], [0.088, 0.05, 0.38, 58, -0.006]], true) },
+      { name: 'band', parent: 'head', at: [0.092, 0.15, -0.1], pieces: locks([[-0.02, 0.04, 0.34, 57, 0], [0.022, 0.04, 0.34, 58, 0.008]]) },
+      { name: 'band2', parent: 'band', at: [0, -0.34, 0], pieces: locks([[-0.02, 0.04, 0.46, 57, 0], [0.022, 0.04, 0.3, 58, 0.008]], true) },
+      { name: 'hair', parent: 'head', at: [-0.092, 0.15, -0.1], pieces: locks([[0.02, 0.04, 0.3, 57, 0], [-0.022, 0.04, 0.3, 58, 0.008]]) },
+      { name: 'hair2', parent: 'hair', at: [0, -0.3, 0], pieces: locks([[0.02, 0.04, 0.4, 57, 0], [-0.022, 0.04, 0.26, 58, 0.008]], true) },
+      { name: 'cape', parent: 'chest', at: [0, 0.4, -0.105], pieces: [P(B(0.36, 0.5, 0.024, o(50, { taper: 1 / 1.25 })), 0, -0.5, 0), P(B(0.3, 0.46, 0.016, o(51, { taper: 1 / 1.25 })), 0, -0.48, 0.016)] },
       { name: 'cape2', parent: 'cape', at: [0, -0.5, 0], pieces: [ // the torn lower edge: three tongues of unequal length, each burning at its tip
         ...[[-0.15, 0.13, 0.52], [0, 0.15, 0.4], [0.15, 0.13, 0.58]].flatMap(([x, w, len]) => [P(B(w, len, 0.022, o(50, { taper: 2.2 })), x, -len, 0), ember(P(B(w * 0.5, 0.05, 0.026, o(33, { taper: 2 })), x, -len, 0), 0.75)]),
       ] },

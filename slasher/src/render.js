@@ -16,7 +16,9 @@ const PAL = [
   0x16301f, 0x24482c, 0x33261d, 0x59635a, // 40 leaves in the dark, 41 leaves, 42 bark, 43 mossy stone
   0x5d8a3a, 0x9fb86a, 0x6e4c2f, 0xb08a58, // 44 bamboo, 45 inside of bamboo, 46 wood, 47 inside of wood
   0xffcf8a, 0xb5271b, 0x12111c, 0x74140f, // 48 lit paper, 49 shrine red, 50 ink cloth, 51 dark red lacquer
-  0xd9d3c6, 0x2c2a3a,                     // 52 the white of the mask, 53 cloth catching light
+  0xd9d3c6, 0x2c2a3a,                     // 52 pale paper, 53 cloth catching light
+  0x1b1b25, 0xa81d16, 0x6c110e, 0x868c97, // 54 black lacquer, 55 the red of the mask, 56 the same in its hollows, 57 grey hair
+  0x5a5f6a, 0xe8e2d0, 0xc9a23f,           // 58 grey hair in shadow, 59 tooth, 60 gold
 ].map(lin);
 // uHotA / uHotB: what a fresh cut and a cooling cut glow with. They follow the style of the blade.
 const SHARED = { uTime: { value: 0 }, uHotA: { value: new T.Vector3(1.0, 0.45, 0.1) }, uHotB: { value: new T.Vector3(1.0, 0.1, 0.01) } };

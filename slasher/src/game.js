@@ -227,7 +227,7 @@
     if (P.dead || !P.rig || !P.rig.root.visible || S.mode === 'dead') return;
     const b = P.rig.bones, hot = P.heat + (P.over ? 0.6 : 0);
     const r = dt * (9 + 16 * hot);
-    for (const [bone, len] of [[b.scarf2, 0.44], [b.band2, 0.32], [b.cape2, 0.5]]) {
+    for (const [bone, len] of [[b.cape2, 0.5], [b.cape2, 0.45]]) { // the torn edge of his cloak is alight
       if (rnd() >= r) continue;
       v1.set(0, -len, 0).applyMatrix4(bone.matrixWorld);
       fire(v1.x, v1.y - 0.04, v1.z, 0.2 + 0.2 * Math.min(1, hot) + rnd() * 0.12, 0.32, { vy: 0.9, gain: 0.85 });
@@ -327,8 +327,9 @@
     b.band2.rotation.set(fly * 0.3 + Math.sin(t * 9.4 + 0.4) * (0.1 + 0.2 * flow), 0, 0);
     b.tailL.rotation.set(fly * 0.66 + Math.sin(t * 6.3) * 0.07 * (0.3 + flow), 0, -0.05 - fly * 0.12);
     b.tailR.rotation.set(fly * 0.6 + Math.sin(t * 6.9 + 1.7) * 0.07 * (0.3 + flow), 0, 0.05 + fly * 0.12);
+    if (b.hair) { b.hair.rotation.set(fly * 0.9 + Math.sin(t * 6.1 + 4.0) * 0.1, 0, 0.1 + Math.sin(t * 3.7 + 2.0) * 0.07 * (0.4 + flow)); b.hair2.rotation.set(fly * 0.28 + Math.sin(t * 8.8 + 1.3) * (0.08 + 0.2 * flow), 0, 0); }
     // the cape: it hangs a little off the back at rest, lifts as he moves, and its torn edge lags and snaps behind it
-    b.cape.rotation.set(0.1 + fly * 0.78 + Math.sin(t * 4.6 + 0.7) * (0.04 + 0.07 * flow), 0, Math.sin(t * 3.1) * 0.05 * (0.3 + flow));
+    b.cape.rotation.set(0.05 + fly * 0.78 + Math.sin(t * 4.6 + 0.7) * (0.04 + 0.07 * flow), 0, Math.sin(t * 3.1) * 0.05 * (0.3 + flow));
     b.cape2.rotation.set(fly * 0.22 + Math.sin(t * 7.7 + 2.0) * (0.07 + 0.2 * flow), 0, Math.sin(t * 5.3 + 1.0) * 0.08 * flow);
     P.rig.root.updateMatrixWorld(true);
   }
